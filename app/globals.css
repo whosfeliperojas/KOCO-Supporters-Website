@@ -1,26 +1,225 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ── KOCO Brand Design Tokens (Tailwind v4 CSS-based config) ─────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Brand colors */
+  --color-koco-orange:  #ECA040;
+  --color-koco-teal:    #38B39E;
+  --color-koco-coral:   #E2693E;
+  --color-koco-lime:    #CDD909;
+  --color-koco-blush:   #FCD4C1;
+
+  /* Neutral / background */
+  --color-koco-cream:        #F2E8D5;
+  --color-koco-warm-white:   #F8F0DE;
+  --color-koco-near-black:   #1C1C1C;
+  --color-koco-border:       #E8DCCF;
+
+  /* Semantic aliases */
+  --color-background:   #F2E8D5;
+  --color-foreground:   #1C1C1C;
+  --color-primary:      #ECA040;
+  --color-secondary:    #38B39E;
+  --color-danger:       #E2693E;
+  --color-success:      #CDD909;
+  --color-card:         #F8F0DE;
+  --color-card-alt:     #FCD4C1;
+
+  /* Typography */
+  --font-body:    "Poppins", sans-serif;
+  --font-display: "Caveat", cursive;
+
+  /* Spacing */
+  --radius-card:   14px;
+  --radius-btn:    8px;
+  --radius-input:  8px;
+  --radius-chip:   999px;
+
+  /* Shadows */
+  --shadow-card:  0 2px 8px rgba(0,0,0,0.07);
+  --shadow-btn:   0 1px 4px rgba(0,0,0,0.10);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Global base ─────────────────────────────────────────────────────────── */
+:root {
+  font-family: "Poppins", sans-serif;
+
+  /* Motion tokens — ease-out only, no bounce/elastic */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #F2E8D5;
+  color: #1C1C1C;
+  font-family: "Poppins", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ── Utility classes not covered by Tailwind v4 ─────────────────────────── */
+
+/* Teal left-border accent for active nav items / selected cards */
+.border-l-koco-active {
+  border-left: 3px solid #38B39E;
+}
+
+/* Soft card shadow */
+.shadow-koco {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
+/* Display font — always uppercase */
+.font-display {
+  font-family: "Caveat", cursive;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Label style — small, uppercase, tracked */
+.label-style {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Motion system ───────────────────────────────────────────────────────── */
+
+/* Entrance: fade-up with optional stagger via --i (cap --i at 8 in JSX) */
+@keyframes koco-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-in {
+  animation: koco-fade-up 350ms var(--ease-out-quint) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* Pop: for state confirmations (saved!, signed up, points landed) */
+@keyframes koco-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.anim-pop {
+  animation: koco-pop 250ms var(--ease-out-quart) both;
+}
+
+/* Mobile drawer */
+@keyframes koco-slide-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes koco-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.drawer-in   { animation: koco-slide-in-left 260ms var(--ease-out-quint) both; }
+.backdrop-in { animation: koco-fade 200ms ease-out both; }
+
+/* Buttons: felt press + shadow lift */
+.btn-hover {
+  transition:
+    transform 0.15s var(--ease-out-quart),
+    box-shadow 0.2s var(--ease-out-quart),
+    opacity 0.15s ease;
+}
+.btn-hover:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+}
+.btn-hover:active {
+  transform: scale(0.97);
+  transition-duration: 0.08s;
+}
+.btn-hover:focus-visible {
+  outline: 2px solid #38B39E;
+  outline-offset: 2px;
+}
+
+/* Clickable cards: gentle lift */
+.card-hover {
+  transition:
+    transform 0.2s var(--ease-out-quart),
+    box-shadow 0.2s var(--ease-out-quart),
+    background-color 0.2s var(--ease-out-quart);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+}
+
+/* Warm focus glow on all form fields */
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px rgba(226,105,62,0.14);
+}
+input, select, textarea {
+  transition: border-color 0.15s var(--ease-out-quart), box-shadow 0.15s var(--ease-out-quart);
+}
+
+button, a { -webkit-tap-highlight-color: transparent; }
+
+/* ── Peko mascot ─────────────────────────────────────────────────────────── */
+.peko { user-select: none; pointer-events: none; }
+
+@keyframes koco-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.peko-bob { animation: koco-bob 3.2s ease-in-out infinite; }
+
+@keyframes koco-wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50%      { transform: rotate(4deg); }
+}
+.peko-wiggle { animation: koco-wiggle 2.2s ease-in-out infinite; transform-origin: 50% 90%; }
+
+.peko-pop { animation: koco-pop 300ms var(--ease-out-quart) both; }
+
+/* ── Companion: the sidebar virtual mascot ──────────────────────────────── */
+.companion-slot { display: none; }
+@media (min-height: 560px) {
+  .companion-slot { display: flex; }
+}
+
+@keyframes koco-breathe {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  50%      { transform: scaleY(1.016) scaleX(0.996); }
+}
+.companion-breathe      { animation: koco-breathe 3.6s ease-in-out infinite; }
+.companion-breathe-slow { animation: koco-breathe 5.8s ease-in-out infinite; }
+
+@keyframes koco-zzz {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.7); }
+  25%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(12px, -30px) scale(1.2); }
+}
+.companion-zzz { animation: koco-zzz 2.7s ease-in-out infinite; }
+
+/* Blink fallback when no eyes-closed frame exists: quick friendly squash */
+@keyframes koco-squash {
+  0%   { transform: scaleY(1); }
+  40%  { transform: scaleY(0.72) translateY(6%); }
+  100% { transform: scaleY(1); }
+}
+.peko-squash { animation: koco-squash 220ms var(--ease-out-quart); transform-origin: 50% 100%; }
+
+/* Reduced motion: collapse all transitions/animations to instant */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Status chip colors */
+.chip-draft     { background: rgba(236,160,64,0.15);  color: #B07A1A; }
+.chip-submitted { background: rgba(236,160,64,0.15);  color: #B07A1A; }
+.chip-in_review { background: rgba(56,179,158,0.15);  color: #1F7A6E; }
+.chip-approved  { background: rgba(205,217,9,0.15);   color: #6E7A00; }
+.chip-published { background: rgba(0,0,0,0.08);       color: #1C1C1C; }
+.chip-rejected  { background: rgba(226,105,62,0.15);  color: #8C3010; }
+.chip-cancelled { background: rgba(0,0,0,0.06);       color: #555;    }
+.chip-rescheduled { background: rgba(205,217,9,0.10); color: #6E7A00; }
