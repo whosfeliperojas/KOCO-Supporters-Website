@@ -20,8 +20,8 @@ export default async function AdminEventsPage() {
   const [eventsRes, attendeesRes] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, host, event_date_start, event_date_end, start_time, end_time, place, description, max_invited_koco, approval_status, registration_status, proposer:profiles!events_proposed_by_id_fkey(display_name, full_name)")
-      .order("event_date_start", { ascending: false }),
+      .select("id, name, host, event_date_start, event_date_end, date_note, start_time, end_time, place, description, max_invited_koco, approval_status, registration_status, proposer:profiles!events_proposed_by_id_fkey(display_name, full_name)")
+      .order("event_date_start", { ascending: false, nullsFirst: false }),
 
     supabase
       .from("event_attendees")

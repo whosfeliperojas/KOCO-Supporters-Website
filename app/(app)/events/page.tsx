@@ -20,9 +20,14 @@ export default async function EventsPage() {
   const [eventsRes, attendeesRes, proposalsRes] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, host, event_date_start, event_date_end, start_time, end_time, place, description, max_invited_koco, approval_status, registration_status")
-      .eq("approval_status", "confirmed")
-      .order("event_date_start"),
+      .select("id, name, host, event_date_start, event_date_end, date_note, start_time, end_time, place, description, max_invited_koco, approval_status, registration_status, proposed_by_id")
+      // Every event from the Event List sheet is shown whatever its state -
+      // cancelled and not-yet-scheduled ones included. Only a volunteer's own
+      // unreviewed proposal stays private; those carry proposed_by_id and
+      // already appear under "my proposals".
+      .or("approval_status.eq.confirmed,proposed_by_id.is.null")
+      // Newest first. Unscheduled events sort last rather than leading the list.
+      .order("event_date_start", { ascending: false, nullsFirst: false }),
 
     supabase
       .from("event_attendees")

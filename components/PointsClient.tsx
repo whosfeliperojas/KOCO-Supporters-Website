@@ -4,9 +4,13 @@ import { useLocale } from "@/lib/locale-context";
 import { DATE_LOCALE } from "@/lib/i18n";
 import { COMPLETION_TARGET_POINTS } from "@/lib/points";
 
+/** Group key for entries whose source sheet left the date blank. */
+const UNDATED = "undated";
+
 type Entry = {
   id: string;
-  date: string;
+  /** NULL when the Points Log did not record a date. */
+  date: string | null;
   points_earned: number;
   notes: string | null;
   criteria: { category: string; description_es: string | null; description_en: string | null; type: string } | null;
@@ -25,21 +29,25 @@ export default function PointsClient({
 
   const total = entries.reduce((s, e) => s + e.points_earned, 0);
 
+  // Entries the sheet never dated are grouped separately rather than guessed
+  // into a month. They arrive last (the query orders nulls last), so their
+  // section renders at the bottom.
   const byMonth: Record<string, Entry[]> = {};
   for (const e of entries) {
-    const key = e.date.slice(0, 7); // "2026-05"
+    const key = e.date ? e.date.slice(0, 7) : UNDATED; // "2026-05"
     if (!byMonth[key]) byMonth[key] = [];
     byMonth[key].push(e);
   }
 
   const T = {
-    es: { title: "Mis puntos", total: "Total acumulado", pts: "pts", noPoints: "Sin puntos registrados aún", criteria: "Criterio", date: "Fecha", earned: "Puntos", notes: "Notas", core: "Core", extra: "Extra", toGo: "Te faltan {n} pts para llegar a 80", met: "¡Requisito cumplido! Sigue sumando puntos extra" },
-    en: { title: "My points", total: "Total accumulated", pts: "pts", noPoints: "No points recorded yet", criteria: "Criteria", date: "Date", earned: "Points", notes: "Notes", core: "Core", extra: "Extra", toGo: "{n} pts to go to reach 80", met: "Completion requirement met! Keep earning extra points" },
-    ko: { title: "내 포인트", total: "누적 포인트", pts: "점", noPoints: "아직 등록된 포인트가 없어요", criteria: "기준", date: "날짜", earned: "포인트", notes: "메모", core: "Core", extra: "Extra", toGo: "80점까지 {n}점 남았어요", met: "이수 조건을 달성했어요! 추가 포인트는 계속 쌓을 수 있어요" },
+    es: { title: "Mis puntos", total: "Total acumulado", pts: "pts", noPoints: "Sin puntos registrados aún", criteria: "Criterio", date: "Fecha", earned: "Puntos", notes: "Notas", core: "Core", extra: "Extra", toGo: "Te faltan {n} pts para llegar a 80", undated: "Sin fecha registrada", met: "¡Requisito cumplido! Sigue sumando puntos extra" },
+    en: { title: "My points", total: "Total accumulated", pts: "pts", noPoints: "No points recorded yet", criteria: "Criteria", date: "Date", earned: "Points", notes: "Notes", core: "Core", extra: "Extra", toGo: "{n} pts to go to reach 80", undated: "No date recorded", met: "Completion requirement met! Keep earning extra points" },
+    ko: { title: "내 포인트", total: "누적 포인트", pts: "점", noPoints: "아직 등록된 포인트가 없어요", criteria: "기준", date: "날짜", earned: "포인트", notes: "메모", core: "Core", extra: "Extra", toGo: "80점까지 {n}점 남았어요", undated: "날짜 미기록", met: "이수 조건을 달성했어요! 추가 포인트는 계속 쌓을 수 있어요" },
   } as const;
   const L = T[locale];
 
   function monthLabel(key: string) {
+    if (key === UNDATED) return L.undated;
     const [year, month] = key.split("-");
     const date = new Date(Number(year), Number(month) - 1, 1);
     return date.toLocaleDateString(DATE_LOCALE[locale], { month: "long", year: "numeric" });
@@ -123,8 +131,12 @@ export default function PointsClient({
                     const reason = locale === "es"
                       ? (entry.criteria?.description_es ?? entry.criteria?.description_en)
                       : (entry.criteria?.description_en ?? entry.criteria?.description_es);
-                    const dateObj = new Date(entry.date + "T12:00:00");
-                    const dateLabel = dateObj.toLocaleDateString(DATE_LOCALE[locale], { day: "numeric", month: "short", year: "numeric" });
+                    const dateLabel = entry.date
+                      ? new Date(entry.date + "T12:00:00").toLocaleDateString(
+                          DATE_LOCALE[locale],
+                          { day: "numeric", month: "short", year: "numeric" }
+                        )
+                      : "—";
                     return (
                       <div
                         key={entry.id}

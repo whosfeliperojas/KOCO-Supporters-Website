@@ -109,7 +109,7 @@ export default function AdminPointsClient({
     setEditingId(entry.id);
     setVolunteerId(entry.volunteer_id);
     setCriteriaId(entry.criteria_id);
-    setDate(entry.date);
+    setDate(entry.date ?? "");
     setPoints(entry.points_earned);
     setNotes(entry.notes ?? "");
     setErrors({});
@@ -362,7 +362,7 @@ export default function AdminPointsClient({
                         {volName(e.volunteer_id)}
                       </p>
                       <p className="text-xs truncate" style={{ color: "#888" }}>
-                        {e.criteria?.category ?? "—"} · {e.date}
+                        {e.criteria?.category ?? "—"} · {e.date ?? "—"}
                       </p>
                       {(() => {
                         const d = locale === "es"

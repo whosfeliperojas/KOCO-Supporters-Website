@@ -12,7 +12,7 @@ export type ContentStatus =
   | "cancelled"
   | "rescheduled";
 
-export type EventApproval = "pending" | "confirmed" | "rejected";
+export type EventApproval = "pending" | "confirmed" | "rejected" | "cancelled";
 export type EventRegistration = "open" | "closed";
 export type AttendeeRole = "attendee" | "support";
 export type CriteriaType = "core" | "extra";
@@ -61,8 +61,11 @@ export interface Event {
   host: string | null;
   proposed_by_text: string | null;
   proposed_by_id: string | null;
-  event_date_start: string;
+  /** NULL when the event is planned but not yet scheduled - see date_note. */
+  event_date_start: string | null;
   event_date_end: string | null;
+  /** The sheet's own wording when the date cell is not a date, e.g. "Early November". */
+  date_note: string | null;
   start_time: string | null;
   end_time: string | null;
   place: string | null;
@@ -149,7 +152,8 @@ export interface PointLogEntry {
   id: string;
   volunteer_id: string;
   criteria_id: string;
-  date: string;
+  /** NULL when the source Points Log left the date cell blank. */
+  date: string | null;
   points_earned: number;
   notes: string | null;
   event_id: string | null;

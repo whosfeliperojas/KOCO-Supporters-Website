@@ -20,8 +20,12 @@ export default async function AdminContentPage() {
   // All proposals — admins review, approve, cancel, or schedule from here
   const { data: posts } = await supabase
     .from("content_posts")
-    .select("id, title, status, format, channel, publication_date, updated_at, responsible:profiles!responsible_id(full_name)")
-    .order("updated_at", { ascending: false });
+    .select("id, title, status, format, channel, publication_date, updated_at, in_general, in_final, publication_cycle_id, design_url, caption, responsible:profiles!responsible_id(full_name)")
+    // Oldest proposal first, by its planned publication date. Ideas with no
+    // date yet sort last instead of leading the list, and title breaks ties so
+    // the order is stable for the several posts that share a date.
+    .order("publication_date", { ascending: true, nullsFirst: false })
+    .order("title", { ascending: true });
 
   const { data: cycles } = await supabase
     .from("publication_cycles")

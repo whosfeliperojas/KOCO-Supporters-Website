@@ -44,7 +44,57 @@ type Post = {
   publication_date: string | null;
   updated_at: string;
   responsible: { full_name: string } | { full_name: string }[] | null;
+  /** Which Parrilla grid the idea belongs to. Maintained in this tab. */
+  in_general: boolean;
+  in_final: boolean;
+  publication_cycle_id: string | null;
+  design_url: string | null;
+  caption: string | null;
 };
+
+type Grid = "general" | "final";
+
+/**
+ * Ideas that look like the same post entered twice.
+ *
+ * Two signals, both seen in the source workbook:
+ *  - the same title appearing more than once (one idea scheduled on two dates);
+ *  - two differently-named rows on the same publication date carrying an
+ *    identical design link or caption — the two grids named the same content
+ *    differently ("KOICAST EP 1" vs "KOICAST (Podcast) 1° Episodio.").
+ *
+ * Returns id -> the title it collides with. Nothing is merged; this only marks.
+ */
+function findDuplicates(posts: Post[]): Record<string, string> {
+  const flat = (s: string | null) => (s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  const out: Record<string, string> = {};
+
+  const byTitle = new Map<string, Post[]>();
+  for (const p of posts) {
+    const k = flat(p.title);
+    if (!k) continue;
+    byTitle.set(k, [...(byTitle.get(k) ?? []), p]);
+  }
+  for (const group of byTitle.values()) {
+    if (group.length < 2) continue;
+    for (const p of group) out[p.id] = p.title;
+  }
+
+  const dated = posts.filter((p) => p.publication_date);
+  for (let i = 0; i < dated.length; i++) {
+    for (let j = i + 1; j < dated.length; j++) {
+      const a = dated[i], b = dated[j];
+      if (a.publication_date !== b.publication_date) continue;
+      const sameLink = !!flat(a.design_url) && flat(a.design_url) === flat(b.design_url);
+      const sameCaption = !!flat(a.caption) && flat(a.caption) === flat(b.caption);
+      if (sameLink || sameCaption) {
+        out[a.id] = b.title;
+        out[b.id] = a.title;
+      }
+    }
+  }
+  return out;
+}
 
 function buildCalendarDays(year: number, month: number) {
   const firstDay = new Date(year, month, 1).getDay();
@@ -92,6 +142,34 @@ export default function ContentListClient({
   });
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [savingDateId, setSavingDateId] = useState<string | null>(null);
+  // Which Parrilla grid the admin list is showing. General is the full
+  // pipeline (every idea, any status); final is what actually shipped.
+  const [grid, setGrid] = useState<Grid>("general");
+  const [savingGridId, setSavingGridId] = useState<string | null>(null);
+
+  // Admins browse one grid at a time; volunteers see their own posts, which
+  // have no grid concept.
+  const shownPosts = isAdmin
+    ? posts.filter((p) => (grid === "final" ? p.in_final : p.in_general))
+    : posts;
+
+  const duplicates = findDuplicates(shownPosts);
+
+  function cycleLabel(cycleId: string | null) {
+    if (!cycleId) return null;
+    return cycles.find((c) => c.id === cycleId)?.label ?? null;
+  }
+
+  async function toggleFinal(post: Post) {
+    setSavingGridId(post.id);
+    const supabase = createClient();
+    await supabase
+      .from("content_posts")
+      .update({ in_final: !post.in_final })
+      .eq("id", post.id);
+    setSavingGridId(null);
+    router.refresh();
+  }
 
   // Shared team view (volunteers): safe subset of everyone's ideas via RPC
   const [volView, setVolView] = useState<"mine" | "team">("mine");
@@ -117,7 +195,7 @@ export default function ContentListClient({
       title: "Contenidos", adminTitle: "Revisión de contenidos", newPost: "+ Nuevo contenido",
       noContent: "Aún no hay contenidos.", colTitle: "Título", format: "Formato",
       status: "Estado", pubDate: "Publicación", by: "por",
-      list: "Lista", calendar: "Calendario", prev: "Ant", next: "Sig",
+      list: "Lista", calendar: "Calendario", prev: "Ant", next: "Sig", grid: "Parrilla", gridGeneral: "General", gridFinal: "Final", inFinal: "En final", addToFinal: "+ Final", addToFinalHint: "Agregar a la parrilla final", removeFromFinalHint: "Quitar de la parrilla final", dupBadge: "Duplicado?", dupTitle: "Posible duplicado de",
       noPosts: "Sin publicaciones este día", changeDate: "Cambiar fecha", open: "Abrir",
       unscheduled: "Sin fecha programada",
       weekDays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
@@ -131,7 +209,7 @@ export default function ContentListClient({
       title: "Content", adminTitle: "Content review", newPost: "+ New post",
       noContent: "No content yet.", colTitle: "Title", format: "Format",
       status: "Status", pubDate: "Pub. date", by: "by",
-      list: "List", calendar: "Calendar", prev: "Prev", next: "Next",
+      list: "List", calendar: "Calendar", prev: "Prev", next: "Next", grid: "Grid", gridGeneral: "General", gridFinal: "Final", inFinal: "In final", addToFinal: "+ Final", addToFinalHint: "Add to the final grid", removeFromFinalHint: "Remove from the final grid", dupBadge: "Duplicate?", dupTitle: "Possible duplicate of",
       noPosts: "Nothing scheduled this day", changeDate: "Change date", open: "Open",
       unscheduled: "No date scheduled",
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -145,7 +223,7 @@ export default function ContentListClient({
       title: "콘텐츠", adminTitle: "콘텐츠 검토", newPost: "+ 새 콘텐츠",
       noContent: "아직 콘텐츠가 없어요.", colTitle: "제목", format: "포맷",
       status: "상태", pubDate: "게시일", by: "담당:",
-      list: "목록", calendar: "캘린더", prev: "이전", next: "다음",
+      list: "목록", calendar: "캘린더", prev: "이전", next: "다음", grid: "그리드", gridGeneral: "전체", gridFinal: "최종", inFinal: "최종 포함", addToFinal: "+ 최종", addToFinalHint: "최종 그리드에 추가", removeFromFinalHint: "최종 그리드에서 제외", dupBadge: "중복?", dupTitle: "중복 가능성",
       noPosts: "이 날짜에는 게시물이 없어요", changeDate: "날짜 변경", open: "열기",
       unscheduled: "게시일 미정",
       weekDays: ["일", "월", "화", "수", "목", "금", "토"],
@@ -302,7 +380,43 @@ export default function ContentListClient({
         </h1>
 
         {isAdmin ? (
-          /* List / Calendar sliding toggle — admins schedule, they don't create */
+          <div className="flex items-center gap-3 flex-wrap">
+          {/* Parrilla general / final — list view only */}
+          {view === "list" && (
+            <div
+              role="radiogroup"
+              aria-label={`${L.gridGeneral} / ${L.gridFinal}`}
+              className="relative grid grid-cols-2 rounded-full p-1 w-52"
+              style={{ backgroundColor: "rgba(56,179,158,0.10)" }}
+            >
+              <span
+                aria-hidden
+                className="absolute top-1 bottom-1 rounded-full"
+                style={{
+                  width: "calc((100% - 8px) / 2)",
+                  left: 4,
+                  transform: `translateX(${grid === "final" ? "100%" : "0%"})`,
+                  backgroundColor: "#38B39E",
+                  transition: "transform 200ms var(--ease-out-quart)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.10)",
+                }}
+              />
+              {(["general", "final"] as const).map((g) => (
+                <button
+                  key={g}
+                  role="radio"
+                  aria-checked={grid === g}
+                  onClick={() => setGrid(g)}
+                  className="relative z-10 py-1.5 text-sm font-bold rounded-full text-center transition-colors"
+                  style={{ color: grid === g ? "#FFFFFF" : "#1F7A6E", transitionDuration: "200ms" }}
+                >
+                  {g === "general" ? L.gridGeneral : L.gridFinal}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* List / Calendar sliding toggle — admins schedule, they don't create */}
           <div
             role="radiogroup"
             aria-label={`${L.list} / ${L.calendar}`}
@@ -333,6 +447,7 @@ export default function ContentListClient({
                 {v === "list" ? L.list : L.calendar}
               </button>
             ))}
+          </div>
           </div>
         ) : (
           <div className="flex items-center gap-3">
@@ -433,43 +548,81 @@ export default function ContentListClient({
             className="grid grid-cols-12 px-4 py-2 text-xs font-bold uppercase tracking-wider"
             style={{ backgroundColor: "#ECA040", color: "white" }}
           >
-            <span className="col-span-5">{L.colTitle}</span>
+            <span className={isAdmin ? "col-span-4" : "col-span-5"}>{L.colTitle}</span>
             <span className="col-span-2 hidden md:block">{L.format}</span>
             <span className="col-span-2 hidden md:block">{L.pubDate}</span>
-            <span className="col-span-3 md:col-span-3">{L.status}</span>
+            <span className="col-span-3 md:col-span-2">{L.status}</span>
+            {isAdmin && <span className="col-span-2 md:col-span-2 text-right">{L.grid}</span>}
           </div>
 
           <div className="divide-y" style={{ borderColor: "#E8DCCF" }}>
-            {posts.map((post, i) => (
-              <Link
-                key={post.id}
-                href={`/content/${post.id}`}
-                className="grid grid-cols-12 px-4 py-3 items-center transition-colors"
-                style={{
-                  backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#F8F0DE",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#FCD4C1")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = i % 2 === 0 ? "#FFFFFF" : "#F8F0DE")}
-              >
-                <div className="col-span-5 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>{post.title}</p>
-                  {isAdmin && post.responsible && (
-                    <p className="text-xs truncate" style={{ color: "#888" }}>
-                      {L.by} {responsibleName(post)}
+            {shownPosts.map((post, i) => {
+              const dupOf = duplicates[post.id];
+              const cycle = cycleLabel(post.publication_cycle_id);
+              return (
+                <div
+                  key={post.id}
+                  className="grid grid-cols-12 px-4 py-3 items-center transition-colors"
+                  style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#F8F0DE" }}
+                >
+                  <Link
+                    href={`/content/${post.id}`}
+                    className={`${isAdmin ? "col-span-4" : "col-span-5"} min-w-0`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>
+                        {post.title}
+                      </p>
+                      {dupOf && (
+                        <span
+                          title={`${L.dupTitle}: ${dupOf}`}
+                          className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                          style={{ backgroundColor: "rgba(226,105,62,0.15)", color: "#8C3010" }}
+                        >
+                          {L.dupBadge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs truncate" style={{ color: "#6B6258" }}>
+                      {[
+                        isAdmin && post.responsible ? `${L.by} ${responsibleName(post)}` : null,
+                        post.channel,
+                        cycle,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
                     </p>
+                  </Link>
+                  <span className="col-span-2 text-xs hidden md:block" style={{ color: "#6B6258" }}>
+                    {post.format ?? "—"}
+                  </span>
+                  <span className="col-span-2 text-xs hidden md:block" style={{ color: "#6B6258" }}>
+                    {post.publication_date ?? "—"}
+                  </span>
+                  <div className="col-span-3 md:col-span-2">
+                    <StatusChip status={post.status} />
+                  </div>
+                  {isAdmin && (
+                    <div className="col-span-2 flex justify-end">
+                      <button
+                        onClick={() => toggleFinal(post)}
+                        disabled={savingGridId === post.id}
+                        title={post.in_final ? L.removeFromFinalHint : L.addToFinalHint}
+                        className="text-xs font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors"
+                        style={{
+                          border: "1.5px solid #E8DCCF",
+                          backgroundColor: post.in_final ? "rgba(56,179,158,0.12)" : "#F8F0DE",
+                          color: post.in_final ? "#1F7A6E" : "#6B6258",
+                          opacity: savingGridId === post.id ? 0.6 : 1,
+                        }}
+                      >
+                        {post.in_final ? L.inFinal : L.addToFinal}
+                      </button>
+                    </div>
                   )}
                 </div>
-                <span className="col-span-2 text-xs hidden md:block" style={{ color: "#666" }}>
-                  {post.format ?? "—"}
-                </span>
-                <span className="col-span-2 text-xs hidden md:block" style={{ color: "#666" }}>
-                  {post.publication_date ?? "—"}
-                </span>
-                <div className="col-span-3">
-                  <StatusChip status={post.status} />
-                </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

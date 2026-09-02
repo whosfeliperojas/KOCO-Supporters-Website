@@ -21,7 +21,7 @@ export default async function PointsPage() {
     .from("point_log_entries")
     .select("id, date, points_earned, notes, criteria:point_criteria(category, description_es, description_en, type)")
     .eq("volunteer_id", profile.id)
-    .order("date", { ascending: false });
+    .order("date", { ascending: false, nullsFirst: false });
 
   return (
     <PointsClient

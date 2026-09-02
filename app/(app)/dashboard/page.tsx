@@ -60,7 +60,7 @@ export default async function DashboardPage() {
       .from("point_log_entries")
       .select("points_earned, date, notes, criteria:point_criteria(category, description_es, description_en)")
       .eq("volunteer_id", profile.id)
-      .order("date", { ascending: false })
+      .order("date", { ascending: false, nullsFirst: false })
       .limit(50),
 
     supabase

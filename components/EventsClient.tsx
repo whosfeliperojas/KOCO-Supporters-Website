@@ -10,8 +10,10 @@ type Event = {
   id: string;
   name: string;
   host: string | null;
-  event_date_start: string;
+  /** NULL when the event is planned but not yet scheduled - see date_note. */
+  event_date_start: string | null;
   event_date_end: string | null;
+  date_note: string | null;
   start_time: string | null;
   end_time: string | null;
   place: string | null;
@@ -19,11 +21,20 @@ type Event = {
   max_invited_koco: number | null;
   approval_status: string;
   registration_status: string;
+  proposed_by_id: string | null;
 };
 
 type Rsvp = "accepted" | "declined";
 
-function formatDate(start: string, end: string | null, locale: Locale) {
+function formatDate(
+  start: string | null,
+  end: string | null,
+  locale: Locale,
+  dateNote?: string | null
+) {
+  // Unscheduled events show the sheet's own wording ("Early November")
+  // rather than a fabricated date.
+  if (!start) return dateNote ?? "—";
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "long" };
   const langCode = DATE_LOCALE[locale];
   const s = new Date(start + "T12:00:00").toLocaleDateString(langCode, opts);
@@ -94,12 +105,14 @@ export default function EventsClient({
   const [pStatus, setPStatus] = useState<"idle" | "sending" | "error">("idle");
 
   const today = new Date().toISOString().split("T")[0];
-  const upcoming = events.filter((e) => e.event_date_start >= today);
-  const past = events.filter((e) => e.event_date_start < today);
+  // An event with no date yet is still ahead of us, not in the past - a null
+  // start would otherwise compare false and silently land in "past".
+  const upcoming = events.filter((e) => !e.event_date_start || e.event_date_start >= today);
+  const past = events.filter((e) => !!e.event_date_start && e.event_date_start < today);
 
   const T = {
     es: {
-      title: "Eventos", upcoming: "Próximos eventos", past: "Eventos pasados",
+      title: "Eventos", upcoming: "Próximos eventos", past: "Eventos pasados", cancelled: "Cancelado", rejected: "Rechazado", pendingState: "Por confirmar",
       noUp: "No hay eventos próximos confirmados",
       attend: "Inscribirme", decline: "No asistiré",
       attending: "Inscrito/a ✓", declined: "No asistirás",
@@ -119,7 +132,7 @@ export default function EventsClient({
       propPending: "Pendiente", propConfirmed: "Confirmado", propRejected: "Rechazado",
     },
     en: {
-      title: "Events", upcoming: "Upcoming events", past: "Past events",
+      title: "Events", upcoming: "Upcoming events", past: "Past events", cancelled: "Cancelled", rejected: "Rejected", pendingState: "Not confirmed",
       noUp: "No upcoming confirmed events",
       attend: "Sign up", decline: "Not attending",
       attending: "Signed up ✓", declined: "Not attending",
@@ -139,7 +152,7 @@ export default function EventsClient({
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     },
     ko: {
-      title: "행사", upcoming: "다가오는 행사", past: "지난 행사",
+      title: "행사", upcoming: "다가오는 행사", past: "지난 행사", cancelled: "취소됨", rejected: "반려됨", pendingState: "미확정",
       noUp: "예정된 행사가 없어요",
       attend: "신청하기", decline: "불참할게요",
       attending: "신청 완료 ✓", declined: "불참",
@@ -223,19 +236,41 @@ export default function EventsClient({
     const time = formatTime(event.start_time, event.end_time);
     const loading = loadingId === event.id;
     const spotsLeft = event.max_invited_koco != null ? Math.max(0, event.max_invited_koco - count) : null;
+    // A cancelled or not-yet-approved event is shown, but never signable.
+    const state = event.approval_status;
+    const isCancelled = state === "cancelled" || state === "rejected";
+    const canSignUp = showSignup && state === "confirmed";
 
     return (
       <div className="rounded-2xl p-5 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{event.name}</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3
+                className="text-base font-bold"
+                style={{ color: "#1C1C1C", textDecoration: isCancelled ? "line-through" : undefined }}
+              >
+                {event.name}
+              </h3>
+              {state !== "confirmed" && (
+                <span
+                  className="text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{
+                    backgroundColor: isCancelled ? "rgba(226,105,62,0.15)" : "rgba(236,160,64,0.18)",
+                    color: isCancelled ? "#E2693E" : "#B07A1A",
+                  }}
+                >
+                  {state === "cancelled" ? L.cancelled : state === "rejected" ? L.rejected : L.pendingState}
+                </span>
+              )}
+            </div>
             <p className="text-sm mt-1 font-medium" style={{ color: "#ECA040" }}>
-              {formatDate(event.event_date_start, event.event_date_end, locale)}
+              {formatDate(event.event_date_start, event.event_date_end, locale, event.date_note)}
               {time ? ` · ${time}` : ""}
             </p>
             {event.place && <p className="text-xs mt-0.5" style={{ color: "#888" }}>📍 {event.place}</p>}
             {event.host && <p className="text-xs mt-0.5" style={{ color: "#888" }}>{L.host}: {event.host}</p>}
-            {spotsLeft != null && showSignup && !myChoice && (
+            {spotsLeft != null && canSignUp && !myChoice && (
               <p className="text-xs mt-1 font-medium" style={{ color: isFull ? "#E2693E" : "#38B39E" }}>
                 {isFull ? L.full : `${spotsLeft} ${L.spotsLeft}`}
               </p>
@@ -243,7 +278,7 @@ export default function EventsClient({
             {event.description && <p className="text-sm mt-2 leading-relaxed" style={{ color: "#555" }}>{event.description}</p>}
           </div>
 
-          {showSignup && (
+          {canSignUp && (
             <div className="shrink-0 flex flex-col gap-2">
               {myChoice ? (
                 <span
@@ -301,6 +336,7 @@ export default function EventsClient({
     function eventsOnDay(day: number) {
       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       return events.filter((e) => {
+        if (!e.event_date_start) return false; // unscheduled: no day to land on
         if (e.event_date_start <= dateStr && (e.event_date_end ?? e.event_date_start) >= dateStr) return true;
         return e.event_date_start === dateStr;
       });
@@ -373,7 +409,7 @@ export default function EventsClient({
                         <span
                           key={ev.id}
                           className="block w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: ev.event_date_start >= todayStr ? "#ECA040" : "#CDD909" }}
+                          style={{ backgroundColor: !ev.event_date_start || ev.event_date_start >= todayStr ? "#ECA040" : "#CDD909" }}
                         />
                       ))}
                     </div>
@@ -394,7 +430,7 @@ export default function EventsClient({
               <p className="text-sm" style={{ color: "#888" }}>{L.noEvents}</p>
             ) : (
               selectedEvents.map((ev) => (
-                <EventCard key={ev.id} event={ev} showSignup={!isAdmin && ev.event_date_start >= todayStr} />
+                <EventCard key={ev.id} event={ev} showSignup={!isAdmin && (!ev.event_date_start || ev.event_date_start >= todayStr)} />
               ))
             )}
           </div>

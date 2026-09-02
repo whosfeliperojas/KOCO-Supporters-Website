@@ -30,7 +30,7 @@ export default function DashboardClient({
   myProposals,
 }: {
   profile: Profile;
-  points: { points_earned: number; date: string; notes: string | null; criteria: { category: string; description_es: string | null; description_en: string | null } | null }[];
+  points: { points_earned: number; date: string | null; notes: string | null; criteria: { category: string; description_es: string | null; description_en: string | null } | null }[];
   upcomingEvents: { id: string; name: string; event_date_start: string; event_date_end: string | null; place: string | null; registration_status: string }[];
   recentPosts: { id: string; title: string; status: string; publication_date: string | null; format: string | null }[];
   myProposals: { id: string; name: string; event_date_start: string; approval_status: "pending" | "confirmed" | "rejected" }[];
@@ -176,7 +176,7 @@ export default function DashboardClient({
                       {p.notes && (
                         <p className="text-xs truncate" style={{ color: "#888" }}>{p.notes}</p>
                       )}
-                      <p className="text-xs mt-0.5" style={{ color: "#AAA" }}>{p.date}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#AAA" }}>{p.date ?? "—"}</p>
                     </div>
                     <span className="text-sm font-bold shrink-0" style={{ color: "#CDD909" }}>
                       +{p.points_earned} {L.pts}

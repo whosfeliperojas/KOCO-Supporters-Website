@@ -19,7 +19,7 @@ export default async function ContentPage() {
 
   let query = supabase
     .from("content_posts")
-    .select("id, title, status, format, channel, publication_date, updated_at, responsible:profiles!responsible_id(full_name)")
+    .select("id, title, status, format, channel, publication_date, updated_at, in_general, in_final, publication_cycle_id, design_url, caption, responsible:profiles!responsible_id(full_name)")
     .order("updated_at", { ascending: false });
 
   if (!profile.is_admin) {

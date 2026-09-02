@@ -41,7 +41,7 @@ export default async function AdminPointsPage() {
     supabase
       .from("point_log_entries")
       .select("id, volunteer_id, criteria_id, date, points_earned, notes, criteria:point_criteria(category, description_es, description_en)")
-      .order("date", { ascending: false }),
+      .order("date", { ascending: false, nullsFirst: false }),
   ]);
 
   return (

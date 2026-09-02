@@ -11,8 +11,10 @@ type Event = {
   id: string;
   name: string;
   host: string | null;
-  event_date_start: string;
+  /** NULL when the event is planned but not yet scheduled - see date_note. */
+  event_date_start: string | null;
   event_date_end: string | null;
+  date_note: string | null;
   start_time: string | null;
   end_time: string | null;
   place: string | null;
@@ -48,7 +50,7 @@ export default function AdminEventsClient({
       regOpen: "Inscripciones abiertas",
       createBtn: "Crear evento", creating: "Creando...", created: "¡Evento creado!",
       required: "Nombre y fecha de inicio son obligatorios.",
-      existing: "Eventos existentes", spots: "cupos", noEvents: "Sin eventos aún",
+      existing: "Eventos existentes", spots: "cupos", noEvents: "Sin eventos aún", cancelledState: "Cancelado", rejectedState: "Rechazado", cancelBtn: "Cancelar evento", cancelConfirm: "Sí, cancelar", cancelAbort: "No", restoreBtn: "Reactivar evento",
       open: "Abierto", closed: "Cerrado", full: "Lleno",
       toggleClose: "Cerrar inscripciones", toggleOpen: "Abrir inscripciones",
       proposalsTitle: "Propuestas de voluntarios/as", proposedBy: "Propuesto por",
@@ -64,7 +66,7 @@ export default function AdminEventsClient({
       regOpen: "Registration open",
       createBtn: "Create event", creating: "Creating...", created: "Event created!",
       required: "Name and start date are required.",
-      existing: "Existing events", spots: "spots", noEvents: "No events yet",
+      existing: "Existing events", spots: "spots", noEvents: "No events yet", cancelledState: "Cancelled", rejectedState: "Rejected", cancelBtn: "Cancel event", cancelConfirm: "Yes, cancel", cancelAbort: "No", restoreBtn: "Restore event",
       open: "Open", closed: "Closed", full: "Full",
       toggleClose: "Close registration", toggleOpen: "Open registration",
       proposalsTitle: "Volunteer proposals", proposedBy: "Proposed by",
@@ -80,7 +82,7 @@ export default function AdminEventsClient({
       regOpen: "신청 받기",
       createBtn: "행사 만들기", creating: "만드는 중...", created: "행사를 만들었어요!",
       required: "이름과 시작일은 필수예요.",
-      existing: "등록된 행사", spots: "정원", noEvents: "아직 행사가 없어요",
+      existing: "등록된 행사", spots: "정원", noEvents: "아직 행사가 없어요", cancelledState: "취소됨", rejectedState: "반려됨", cancelBtn: "행사 취소", cancelConfirm: "네, 취소할게요", cancelAbort: "아니요", restoreBtn: "행사 복구",
       open: "모집 중", closed: "마감", full: "정원 마감",
       toggleClose: "신청 마감하기", toggleOpen: "신청 열기",
       proposalsTitle: "서포터즈 제안", proposedBy: "제안:",
@@ -140,12 +142,33 @@ export default function AdminEventsClient({
     router.refresh();
   }
 
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+
   async function decideProposal(event: Event, decision: "confirmed" | "rejected") {
     setTogglingId(event.id);
     const supabase = createClient();
     await supabase.from("events").update({ approval_status: decision }).eq("id", event.id);
     setTogglingId(null);
     if (decision === "confirmed") companionReact("celebrate");
+    router.refresh();
+  }
+
+  // Cancelling is reversible: an event goes back to confirmed if it was called
+  // off by mistake. Registration is forced closed on the way out so nobody can
+  // still sign up for something that is not happening.
+  async function setCancelled(event: Event, cancelled: boolean) {
+    setTogglingId(event.id);
+    const supabase = createClient();
+    await supabase
+      .from("events")
+      .update(
+        cancelled
+          ? { approval_status: "cancelled", registration_status: "closed" }
+          : { approval_status: "confirmed" }
+      )
+      .eq("id", event.id);
+    setTogglingId(null);
+    setConfirmCancelId(null);
     router.refresh();
   }
 
@@ -160,7 +183,10 @@ export default function AdminEventsClient({
     router.refresh();
   }
 
-  function fmtDate(d: string) {
+  // Unscheduled events show the sheet's own wording ("Early November") where
+  // the date would go, never a fabricated or invalid date.
+  function fmtDate(d: string | null, dateNote?: string | null) {
+    if (!d) return dateNote ?? "—";
     return new Date(d + "T12:00:00").toLocaleDateString(DATE_LOCALE[locale], { day: "numeric", month: "short", year: "numeric" });
   }
 
@@ -258,7 +284,7 @@ export default function AdminEventsClient({
                 <div className="min-w-0">
                   <p className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{ev.name}</p>
                   <p className="text-xs mt-0.5" style={{ color: "#8C6B55" }}>
-                    {fmtDate(ev.event_date_start)}
+                    {fmtDate(ev.event_date_start, ev.date_note)}
                     {ev.place ? ` · ${ev.place}` : ""}
                     {ev.proposer ? ` · ${L.proposedBy} ${ev.proposer.display_name ?? ev.proposer.full_name.split(" ")[0]}` : ""}
                   </p>
@@ -293,20 +319,34 @@ export default function AdminEventsClient({
       {/* Existing events */}
       <section className="space-y-3 anim-in" style={{ "--i": 2 } as React.CSSProperties}>
         <h2 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{L.existing}</h2>
-        {events.filter((ev) => ev.approval_status === "confirmed").length === 0 ? (
+        {events.filter((ev) => ev.approval_status !== "pending").length === 0 ? (
           <div className="rounded-2xl text-center py-10 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
             <p className="text-sm" style={{ color: "#888" }}>{L.noEvents}</p>
           </div>
         ) : (
-          events.filter((ev) => ev.approval_status === "confirmed").map((ev) => {
+          events.filter((ev) => ev.approval_status !== "pending").map((ev) => {
             const count = acceptedCounts[ev.id] ?? 0;
             const isFull = ev.max_invited_koco != null && count >= ev.max_invited_koco;
             const isOpen = ev.registration_status === "open";
+            const isDead = ev.approval_status === "cancelled" || ev.approval_status === "rejected";
             return (
               <div key={ev.id} className="rounded-2xl p-4 shadow-koco flex items-start justify-between gap-3" style={{ backgroundColor: "#F8F0DE" }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{ev.name}</p>
+                    <p
+                      className="text-sm font-bold"
+                      style={{ color: "#1C1C1C", textDecoration: isDead ? "line-through" : undefined }}
+                    >
+                      {ev.name}
+                    </p>
+                    {isDead && (
+                      <span
+                        className="label-style px-2 py-0.5 rounded-full text-xs"
+                        style={{ backgroundColor: "rgba(226,105,62,0.15)", color: "#8C3010" }}
+                      >
+                        {ev.approval_status === "cancelled" ? L.cancelledState : L.rejectedState}
+                      </span>
+                    )}
                     <span
                       className="label-style px-2 py-0.5 rounded-full text-xs"
                       style={{
@@ -318,7 +358,7 @@ export default function AdminEventsClient({
                     </span>
                   </div>
                   <p className="text-xs mt-1" style={{ color: "#ECA040", fontWeight: 500 }}>
-                    {fmtDate(ev.event_date_start)}{ev.event_date_end ? ` – ${fmtDate(ev.event_date_end)}` : ""}
+                    {fmtDate(ev.event_date_start, ev.date_note)}{ev.event_date_end ? ` – ${fmtDate(ev.event_date_end)}` : ""}
                     {ev.start_time ? ` · ${ev.start_time.slice(0, 5)}` : ""}
                     {ev.place ? ` · ${ev.place}` : ""}
                   </p>
@@ -326,18 +366,63 @@ export default function AdminEventsClient({
                     {count}{ev.max_invited_koco != null ? ` / ${ev.max_invited_koco}` : ""} {L.spots}
                   </p>
                 </div>
-                <button
-                  onClick={() => toggleRegistration(ev)}
-                  disabled={togglingId === ev.id}
-                  className="shrink-0 text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
-                  style={{
-                    backgroundColor: isOpen ? "rgba(226,105,62,0.12)" : "rgba(56,179,158,0.12)",
-                    color: isOpen ? "#E2693E" : "#38B39E",
-                    opacity: togglingId === ev.id ? 0.6 : 1,
-                  }}
-                >
-                  {isOpen ? L.toggleClose : L.toggleOpen}
-                </button>
+                <div className="shrink-0 flex flex-col items-end gap-2">
+                  {!isDead && (
+                    <button
+                      onClick={() => toggleRegistration(ev)}
+                      disabled={togglingId === ev.id}
+                      className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
+                      style={{
+                        backgroundColor: isOpen ? "rgba(226,105,62,0.12)" : "rgba(56,179,158,0.12)",
+                        color: isOpen ? "#E2693E" : "#38B39E",
+                        opacity: togglingId === ev.id ? 0.6 : 1,
+                      }}
+                    >
+                      {isOpen ? L.toggleClose : L.toggleOpen}
+                    </button>
+                  )}
+
+                  {isDead ? (
+                    <button
+                      onClick={() => setCancelled(ev, false)}
+                      disabled={togglingId === ev.id}
+                      className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
+                      style={{
+                        backgroundColor: "rgba(56,179,158,0.12)",
+                        color: "#38B39E",
+                        opacity: togglingId === ev.id ? 0.6 : 1,
+                      }}
+                    >
+                      {L.restoreBtn}
+                    </button>
+                  ) : confirmCancelId === ev.id ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCancelled(ev, true)}
+                        disabled={togglingId === ev.id}
+                        className="text-xs font-bold px-3 py-2 rounded-xl text-white btn-hover whitespace-nowrap"
+                        style={{ backgroundColor: "#E2693E", opacity: togglingId === ev.id ? 0.6 : 1 }}
+                      >
+                        {L.cancelConfirm}
+                      </button>
+                      <button
+                        onClick={() => setConfirmCancelId(null)}
+                        className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
+                        style={{ backgroundColor: "rgba(0,0,0,0.06)", color: "#1C1C1C" }}
+                      >
+                        {L.cancelAbort}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmCancelId(ev.id)}
+                      className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
+                      style={{ backgroundColor: "rgba(226,105,62,0.12)", color: "#E2693E" }}
+                    >
+                      {L.cancelBtn}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })
