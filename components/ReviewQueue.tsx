@@ -16,6 +16,12 @@ export type PendingPost = {
   publication_date: string | null;
   responsible_name: string | null;
   submitted_at: string | null;
+  /**
+   * Another post already carries this exact title. Set when the queue should
+   * warn before a decision: a duplicate of an already-published post sat at the
+   * top of this list looking like new work.
+   */
+  duplicateOf?: { status: string; date: string | null } | null;
 };
 
 const T = {
@@ -31,6 +37,8 @@ const T = {
     note: "Nota para quien la propuso (opcional)",
     notePlaceholder: "Qué cambiarías, o por qué no sigue adelante...",
     changesHint: "Vuelve a “En progreso” para que pueda editarla y enviarla de nuevo.",
+    dupWarn: "Ya existe otro contenido con este mismo título",
+    dupCheck: "Revísalo antes de decidir: puede ser el mismo contenido cargado dos veces.",
     working: "Guardando...",
     failed: "No se pudo guardar. Intenta de nuevo.",
   },
@@ -46,6 +54,8 @@ const T = {
     note: "Note for the person who proposed it (optional)",
     notePlaceholder: "What you'd change, or why it isn't going ahead...",
     changesHint: "Goes back to “In progress” so they can edit and resubmit.",
+    dupWarn: "Another post already has this exact title",
+    dupCheck: "Check before deciding — it may be the same content entered twice.",
     working: "Saving...",
     failed: "Couldn't save. Try again.",
   },
@@ -61,6 +71,8 @@ const T = {
     note: "제안한 사람에게 남길 메모 (선택)",
     notePlaceholder: "고쳤으면 하는 점, 또는 진행하지 않는 이유...",
     changesHint: "“진행 중”으로 돌아가서 수정 후 다시 제출할 수 있어요.",
+    dupWarn: "같은 제목의 콘텐츠가 이미 있어요",
+    dupCheck: "결정하기 전에 확인해 주세요. 같은 콘텐츠가 두 번 등록됐을 수 있어요.",
     working: "저장 중...",
     failed: "저장하지 못했어요. 다시 시도해 주세요.",
   },
@@ -149,6 +161,20 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
               {L.open} →
             </Link>
           </div>
+
+          {p.duplicateOf && (
+            <div
+              className="rounded-lg px-3 py-2 text-xs"
+              style={{ backgroundColor: "rgba(226,105,62,0.12)", color: "#8C3010" }}
+            >
+              <span className="font-bold">⚠ {L.dupWarn}</span>
+              {" — "}
+              {p.duplicateOf.status}
+              {p.duplicateOf.date ? `, ${p.duplicateOf.date}` : ""}.
+              {" "}
+              {L.dupCheck}
+            </div>
+          )}
 
           <div className="space-y-1">
             <label className="block text-xs font-medium" style={{ color: "#6B6258" }}>{L.note}</label>

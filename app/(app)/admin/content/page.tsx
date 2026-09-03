@@ -47,9 +47,30 @@ export default async function AdminContentPage() {
   type PendingRow = Omit<PendingPost, "responsible_name"> & {
     responsible: { full_name: string } | { full_name: string }[] | null;
   };
+  // A queued proposal that shares a title with a post already in the grid is
+  // almost always the same idea reaching the queue twice — that is how a
+  // duplicate of an already-published post ended up sitting at the top of the
+  // review list waiting for a decision. Flag it; never merge it automatically.
+  const flat = (t: string) =>
+    t
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "") // strip accents: "Acompañame" === "Acompaname"
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
   const pending: PendingPost[] = ((pendingData ?? []) as unknown as PendingRow[]).map((p) => {
     const r = Array.isArray(p.responsible) ? p.responsible[0] : p.responsible;
-    return { ...p, responsible_name: r?.full_name ?? null };
+    const twins = (posts ?? []).filter((o) => o.id !== p.id && flat(o.title) === flat(p.title));
+    // An already-published twin is the one worth warning about.
+    const twin = twins.find((o) => o.status === "published") ?? twins[0];
+    return {
+      ...p,
+      responsible_name: r?.full_name ?? null,
+      duplicateOf: twin
+        ? { status: twin.status, date: twin.publication_date as string | null }
+        : null,
+    };
   });
 
   return (
