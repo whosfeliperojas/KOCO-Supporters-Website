@@ -62,8 +62,30 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Badge counts for the sidebar. Volunteers see decisions they have not opened
+  // yet; admins see proposals waiting on them. Both are cheap count-only
+  // queries, and RLS already scopes each one to the right rows.
+  let contentBadge = 0;
+  if (profile.is_admin) {
+    const { count } = await supabase
+      .from("content_posts")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["submitted", "in_review"]);
+    contentBadge = count ?? 0;
+  } else {
+    const { data: mine } = await supabase
+      .from("content_posts")
+      .select("status_changed_at, volunteer_seen_at")
+      .eq("responsible_id", profile.id);
+    contentBadge = (mine ?? []).filter(
+      (p) =>
+        p.status_changed_at &&
+        (!p.volunteer_seen_at || new Date(p.status_changed_at) > new Date(p.volunteer_seen_at)),
+    ).length;
+  }
+
   return (
-    <AppShell profile={profile} initialLocale={profile.locale}>
+    <AppShell profile={profile} initialLocale={profile.locale} contentBadge={contentBadge}>
       {children}
     </AppShell>
   );

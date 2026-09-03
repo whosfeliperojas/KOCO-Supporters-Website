@@ -52,11 +52,14 @@ function NavItem({
   href,
   icon,
   label,
+  badge,
   onHover,
 }: {
   href: string;
   icon: string;
   label: string;
+  /** Items needing attention behind this link. Hidden when zero. */
+  badge?: number;
   onHover?: () => void;
 }) {
   const pathname = usePathname();
@@ -74,6 +77,14 @@ function NavItem({
     >
       <span className="text-base w-5 text-center">{icon}</span>
       <span>{label}</span>
+      {!!badge && badge > 0 && (
+        <span
+          className="ml-auto label-style text-xs px-2 py-0.5 rounded-full"
+          style={{ backgroundColor: "#E2693E", color: "#FFFFFF" }}
+        >
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -127,7 +138,13 @@ export function LangSwitcher() {
   );
 }
 
-function Sidebar({ profile, locale, onClose }: { profile: Profile; locale: Locale; onClose?: () => void }) {
+function Sidebar({ profile, locale, contentBadge = 0, onClose }: {
+  profile: Profile;
+  locale: Locale;
+  /** Proposals awaiting review (admin) or unseen decisions (volunteer). */
+  contentBadge?: number;
+  onClose?: () => void;
+}) {
   const router = useRouter();
   const T = SHELL_T[locale];
 
@@ -148,7 +165,12 @@ function Sidebar({ profile, locale, onClose }: { profile: Profile; locale: Local
     router.push("/auth/login");
   }
 
-  const nav = (profile.is_admin ? ADMIN_NAV : NAV).map((n) => ({ ...n, label: n[locale] }));
+  const contentHref = profile.is_admin ? "/admin/content" : "/content";
+  const nav = (profile.is_admin ? ADMIN_NAV : NAV).map((n) => ({
+    ...n,
+    label: n[locale],
+    badge: n.href === contentHref ? contentBadge : undefined,
+  }));
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: "#F2E8D5" }}>
@@ -207,16 +229,19 @@ export default function AppShell({
   profile,
   initialLocale,
   children,
+  contentBadge = 0,
 }: {
   profile: Profile;
   initialLocale: Locale;
   children: React.ReactNode;
+  /** Proposals awaiting review (admin) or unseen decisions (volunteer). */
+  contentBadge?: number;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <LocaleProvider initial={initialLocale}>
-      <AppShellInner profile={profile} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}>
+      <AppShellInner profile={profile} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} contentBadge={contentBadge}>
         {children}
       </AppShellInner>
     </LocaleProvider>
@@ -227,11 +252,14 @@ function AppShellInner({
   profile,
   mobileOpen,
   setMobileOpen,
+  contentBadge = 0,
   children,
 }: {
   profile: Profile;
   mobileOpen: boolean;
   setMobileOpen: (v: boolean) => void;
+  /** Proposals awaiting review (admin) or unseen decisions (volunteer). */
+  contentBadge?: number;
   children: React.ReactNode;
 }) {
   const { locale } = useLocale();
@@ -240,7 +268,7 @@ function AppShellInner({
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 border-r" style={{ borderColor: "#E8DCCF" }}>
-        <Sidebar profile={profile} locale={locale} />
+        <Sidebar profile={profile} contentBadge={contentBadge} locale={locale} />
       </aside>
 
       {/* Mobile sidebar overlay */}
@@ -251,7 +279,7 @@ function AppShellInner({
             onClick={() => setMobileOpen(false)}
           />
           <div className="relative w-56 h-full shadow-xl drawer-in">
-            <Sidebar profile={profile} locale={locale} onClose={() => setMobileOpen(false)} />
+            <Sidebar profile={profile} contentBadge={contentBadge} locale={locale} onClose={() => setMobileOpen(false)} />
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import ContentListClient from "@/components/ContentListClient";
 import { fetchContributors } from "@/lib/contributors";
+import ReviewQueue, { type PendingPost } from "@/components/ReviewQueue";
 import type { Profile } from "@/lib/types";
 
 export default async function AdminContentPage() {
@@ -35,14 +36,35 @@ export default async function AdminContentPage() {
 
   const contributors = await fetchContributors(supabase, (posts ?? []).map((p) => p.id));
 
+  // What is actually waiting on an admin. Sorted oldest-submitted first, so the
+  // proposal that has been waiting longest is answered first.
+  const { data: pendingData } = await supabase
+    .from("content_posts")
+    .select("id, title, status, format, channel, publication_date, submitted_at, responsible:profiles!responsible_id(full_name)")
+    .in("status", ["submitted", "in_review"])
+    .order("submitted_at", { ascending: true, nullsFirst: false });
+
+  type PendingRow = Omit<PendingPost, "responsible_name"> & {
+    responsible: { full_name: string } | { full_name: string }[] | null;
+  };
+  const pending: PendingPost[] = ((pendingData ?? []) as unknown as PendingRow[]).map((p) => {
+    const r = Array.isArray(p.responsible) ? p.responsible[0] : p.responsible;
+    return { ...p, responsible_name: r?.full_name ?? null };
+  });
+
   return (
-    <ContentListClient
+    <div className="space-y-6">
+      <div className="max-w-4xl mx-auto">
+        <ReviewQueue posts={pending} />
+      </div>
+      <ContentListClient
       posts={(posts ?? []) as unknown as Parameters<typeof ContentListClient>[0]["posts"]}
       cycles={cycles ?? []}
       contributors={contributors}
       viewerId={profile.id}
       isAdmin={true}
       locale={profile.locale}
-    />
+      />
+    </div>
   );
 }

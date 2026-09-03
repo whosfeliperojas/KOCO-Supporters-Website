@@ -44,6 +44,10 @@ type Post = {
   caption: string | null;
   /** Workbook Responsable said "Colaboraciones" - a team effort. */
   is_collaboration: boolean;
+  /** Stamped by a trigger whenever status changes. */
+  status_changed_at?: string | null;
+  /** When the responsible volunteer last opened it. */
+  volunteer_seen_at?: string | null;
 };
 
 type Grid = "general" | "final";
@@ -182,6 +186,20 @@ export default function ContentListClient({
     };
   }
 
+  /**
+   * A decision the volunteer has not seen yet.
+   *
+   * Their proposal is reviewed while they are not looking; without this the
+   * only way to find out was to open the post and remember what it said
+   * before. Admins are excluded - they are the ones making the decisions.
+   */
+  function hasUnseenDecision(post: Post) {
+    if (isAdmin) return false;
+    if (!post.status_changed_at) return false;
+    if (!post.volunteer_seen_at) return true;
+    return new Date(post.status_changed_at) > new Date(post.volunteer_seen_at);
+  }
+
   /** A post the viewer helped on but does not lead. Volunteers only. */
   function isCollaboration(post: Post) {
     if (isAdmin) return false;
@@ -234,7 +252,9 @@ export default function ContentListClient({
       list: "Lista", calendar: "Calendario", prev: "Ant", next: "Sig", grid: "Parrilla", gridGeneral: "General", gridFinal: "Final", inFinal: "En final", addToFinal: "+ Final", addToFinalHint: "Agregar a la parrilla final", removeFromFinalHint: "Quitar de la parrilla final", dupBadge: "Duplicado?", dupTitle: "Posible duplicado de",
       noPosts: "Sin publicaciones este día", changeDate: "Cambiar fecha", open: "Abrir",
       unscheduled: "Sin fecha programada",
-      withCollab: "con", collabBadge: "Colaboración", collabTeam: "Colaboraciones", collabHint: "Participaste en este contenido; lo lidera otra persona.",
+      withCollab: "con", collabBadge: "Colaboración", collabTeam: "Colaboraciones",
+      unseenHint: "Novedad: el estado de esta propuesta cambió desde la última vez que la abriste.",
+      updates: "novedades", collabHint: "Participaste en este contenido; lo lidera otra persona.",
       weekDays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
       mine: "Mis ideas", team: "Equipo",
       teamHint: "Mira lo que están creando tus compañeros/as para no repetir ideas.",
@@ -249,7 +269,9 @@ export default function ContentListClient({
       list: "List", calendar: "Calendar", prev: "Prev", next: "Next", grid: "Grid", gridGeneral: "General", gridFinal: "Final", inFinal: "In final", addToFinal: "+ Final", addToFinalHint: "Add to the final grid", removeFromFinalHint: "Remove from the final grid", dupBadge: "Duplicate?", dupTitle: "Possible duplicate of",
       noPosts: "Nothing scheduled this day", changeDate: "Change date", open: "Open",
       unscheduled: "No date scheduled",
-      withCollab: "with", collabBadge: "Collaboration", collabTeam: "Colaboraciones", collabHint: "You worked on this one; someone else leads it.",
+      withCollab: "with", collabBadge: "Collaboration", collabTeam: "Colaboraciones",
+      unseenHint: "New: this proposal's status changed since you last opened it.",
+      updates: "updates", collabHint: "You worked on this one; someone else leads it.",
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       mine: "My ideas", team: "Team",
       teamHint: "See what your teammates are creating so ideas don't repeat.",
@@ -264,7 +286,9 @@ export default function ContentListClient({
       list: "목록", calendar: "캘린더", prev: "이전", next: "다음", grid: "그리드", gridGeneral: "전체", gridFinal: "최종", inFinal: "최종 포함", addToFinal: "+ 최종", addToFinalHint: "최종 그리드에 추가", removeFromFinalHint: "최종 그리드에서 제외", dupBadge: "중복?", dupTitle: "중복 가능성",
       noPosts: "이 날짜에는 게시물이 없어요", changeDate: "날짜 변경", open: "열기",
       unscheduled: "게시일 미정",
-      withCollab: "함께", collabBadge: "협업", collabTeam: "Colaboraciones", collabHint: "담당자는 다른 사람이지만 함께 참여한 콘텐츠예요.",
+      withCollab: "함께", collabBadge: "협업", collabTeam: "Colaboraciones",
+      unseenHint: "새 소식: 마지막으로 열어본 뒤 이 제안의 상태가 바뀌었어요.",
+      updates: "새 소식", collabHint: "담당자는 다른 사람이지만 함께 참여한 콘텐츠예요.",
       weekDays: ["일", "월", "화", "수", "목", "금", "토"],
       mine: "내 아이디어", team: "팀",
       teamHint: "친구들이 만들고 있는 콘텐츠를 둘러보고 아이디어가 겹치지 않게 해요.",
@@ -612,6 +636,7 @@ export default function ContentListClient({
               const cycle = cycleLabel(post.publication_cycle_id);
               const credit = creditLine(post.id);
               const collab = isCollaboration(post);
+              const unseen = hasUnseenDecision(post);
               return (
                 <div
                   key={post.id}
@@ -634,6 +659,14 @@ export default function ContentListClient({
                         >
                           {L.dupBadge}
                         </span>
+                      )}
+                      {unseen && (
+                        <span
+                          title={L.unseenHint}
+                          aria-label={L.unseenHint}
+                          className="shrink-0 w-2 h-2 rounded-full"
+                          style={{ backgroundColor: "#E2693E" }}
+                        />
                       )}
                       {collab && (
                         <span

@@ -10,12 +10,22 @@ import { CONTENT_STATUS_LABEL } from "@/lib/i18n";
 const TRANSITIONS: Partial<Record<ContentStatus, ContentStatus[]>> = {
   // The workbook's two starting states feed into the same review flow.
   not_started: ["in_progress", "cancelled"],
+  // "Request changes" sends a post here: it is the one not-approved state whose
+  // author can still edit it, and "En progreso" is what the workbook calls it.
   in_progress: ["in_review", "approved", "rejected"],
-  submitted:  ["in_review", "rejected"],
-  in_review:  ["approved", "rejected"],
-  approved:   ["published", "rescheduled"],
+  // A verdict does not require a stop at in_review first — that was an extra
+  // click on every proposal. in_review stays for a post worth parking.
+  submitted:  ["approved", "in_progress", "in_review", "rejected"],
+  in_review:  ["approved", "in_progress", "rejected"],
+  approved:   ["published", "rescheduled", "in_progress"],
   published:  ["rescheduled"],
   rescheduled:["published", "cancelled"],
+  // A rejection used to be a dead end for everyone, so a misclick was
+  // permanent. The author can still edit a rejected post, and an admin can
+  // now put it back into the flow.
+  rejected:   ["in_progress", "in_review", "approved"],
+  draft:      ["in_progress", "cancelled"],
+  cancelled:  ["in_progress"],
 };
 
 

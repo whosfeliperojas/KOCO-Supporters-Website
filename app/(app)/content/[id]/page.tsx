@@ -55,11 +55,23 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
 
   const isOwner = post.responsible_id === profile.id;
   const isContributor = contributors.some((c) => c.profile_id === profile.id);
-  const canEdit = profile.is_admin || (isOwner && ["draft", "submitted", "rejected"].includes(post.status));
+  // Must mirror posts_update_own exactly (migration 19). An admin asking for
+  // changes sends a post to in_progress; if that were missing here the
+  // volunteer would be told to fix it and given no way to.
+  const EDITABLE_STATUSES = ["draft", "not_started", "in_progress", "submitted", "rejected"];
+  const canEdit = profile.is_admin || (isOwner && EDITABLE_STATUSES.includes(post.status));
 
   // A collaborator can read the post they worked on, but not edit it — editing
   // stays with the lead and admins, matching posts_update_own.
   if (!canEdit && !isOwner && !isContributor && !profile.is_admin) redirect("/content");
+
+  // Opening the post is what "seen" means. Goes through mark_post_seen because
+  // writing volunteer_seen_at directly would need UPDATE on the row, which
+  // posts_update_own withholds once a post is approved or published — exactly
+  // the states a decision badge points at.
+  if (!profile.is_admin && isOwner) {
+    await supabase.rpc("mark_post_seen", { p_post_id: post.id });
+  }
 
   const T = PANEL_T[profile.locale];
   const feedback = [post.admin_notes, post.review_feedback].filter(Boolean).join("\n\n");

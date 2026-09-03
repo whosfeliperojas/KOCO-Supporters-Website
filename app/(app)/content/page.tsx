@@ -24,7 +24,7 @@ export default async function ContentPage() {
   // Admins see everything, as before.
   const { data: posts } = await supabase
     .from("content_posts")
-    .select("id, title, status, format, channel, publication_date, updated_at, in_general, in_final, is_collaboration, publication_cycle_id, design_url, caption, responsible:profiles!responsible_id(full_name)")
+    .select("id, title, status, format, channel, publication_date, updated_at, in_general, in_final, is_collaboration, publication_cycle_id, design_url, caption, status_changed_at, volunteer_seen_at, responsible:profiles!responsible_id(full_name)")
     // Oldest first, by planned publication date: the list reads as the story of
     // the programme from March forward. Undated ideas sort last rather than
     // leading, and title breaks ties so the order never shuffles between loads.
