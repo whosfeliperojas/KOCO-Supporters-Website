@@ -210,6 +210,14 @@ export default function ContentForm({
   // settled. Everyone else editing here is correcting content.
   const canMoveStatus = isLead && !isSettled;
 
+  // The Reel checklist is a gate for SUBMITTING a reel, not a property of one.
+  // Showing it on an already-published post asked someone to confirm the specs
+  // of a video that shipped months ago — and worse, its checkboxes default to
+  // false, so saving would have written a spec row claiming the reel was not
+  // 9:16, had no clean audio and no subtitles. Only offer it, and only write
+  // it, when the post can actually still be submitted.
+  const showReelChecklist = isReel && canMoveStatus;
+
   const T = {
     es: {
       editTitle: "Editar contenido", newTitle: "Nuevo contenido",
@@ -307,7 +315,7 @@ export default function ContentForm({
       if (script && script.trim().length < 80) errs.script = L.minChars;
       if (!script.trim()) errs.script = L.required;
 
-      if (isReel) {
+      if (showReelChecklist) {
         if (!reelDuration || reelDuration < 7 || reelDuration > 58) errs.reelDuration = L.durationRange;
         if (!reelAspect) errs.reelAspect = L.required;
         if (!reelAudio) errs.reelAudio = L.required;
@@ -438,8 +446,10 @@ export default function ContentForm({
       );
     }
 
-    // Upsert reel specs if Reel format
-    if (isReel && postId) {
+    // Only when the checklist was actually on screen and filled in. Skipping it
+    // leaves any existing specs untouched rather than overwriting them with the
+    // unticked defaults.
+    if (showReelChecklist && postId) {
       await supabase.from("reel_specs").upsert({
         content_post_id: postId,
         duration_seconds: reelDuration || null,
@@ -652,7 +662,7 @@ export default function ContentForm({
       </div>
 
       {/* ── Reel Specs ────────────────────────────────────────── */}
-      {isReel && (
+      {showReelChecklist && (
         <div className="rounded-2xl p-6 shadow-koco space-y-4" style={{ backgroundColor: "#F8F0DE", borderLeft: "4px solid #38B39E" }}>
           <h2 className="text-base font-bold" style={{ color: "#38B39E" }}>{L.reelSection}</h2>
 
