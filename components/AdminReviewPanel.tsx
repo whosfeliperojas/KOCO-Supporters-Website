@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { companionReact } from "@/components/Companion";
 import type { ContentPost, ContentStatus } from "@/lib/types";
+import { CONTENT_STATUS_LABEL } from "@/lib/i18n";
 
 const TRANSITIONS: Partial<Record<ContentStatus, ContentStatus[]>> = {
+  // The workbook's two starting states feed into the same review flow.
+  not_started: ["in_progress", "cancelled"],
+  in_progress: ["in_review", "approved", "rejected"],
   submitted:  ["in_review", "rejected"],
   in_review:  ["approved", "rejected"],
   approved:   ["published", "rescheduled"],
@@ -14,23 +18,7 @@ const TRANSITIONS: Partial<Record<ContentStatus, ContentStatus[]>> = {
   rescheduled:["published", "cancelled"],
 };
 
-const STATUS_LABELS: Record<"es" | "en" | "ko", Record<ContentStatus, string>> = {
-  es: {
-    draft: "Borrador", submitted: "Enviado", in_review: "En revisión",
-    approved: "Aprobado", published: "Publicado", rejected: "Rechazado",
-    cancelled: "Cancelado", rescheduled: "Reagendado",
-  },
-  en: {
-    draft: "Draft", submitted: "Submitted", in_review: "In review",
-    approved: "Approved", published: "Published", rejected: "Rejected",
-    cancelled: "Cancelled", rescheduled: "Rescheduled",
-  },
-  ko: {
-    draft: "임시 저장", submitted: "제출됨", in_review: "검토 중",
-    approved: "승인됨", published: "게시됨", rejected: "반려됨",
-    cancelled: "취소됨", rescheduled: "일정 변경",
-  },
-};
+
 
 export default function AdminReviewPanel({ post, locale }: { post: ContentPost; locale: "es" | "en" | "ko" }) {
   const router = useRouter();
@@ -39,7 +27,8 @@ export default function AdminReviewPanel({ post, locale }: { post: ContentPost; 
   const [saving, setSaving] = useState(false);
 
   const available = TRANSITIONS[post.status as ContentStatus] ?? [];
-  const statusLabel = STATUS_LABELS[locale];
+  // Shared map is keyed status-first; keep the local shape status-agnostic.
+  const statusLabel = (st: ContentStatus) => CONTENT_STATUS_LABEL[st][locale];
 
   const T = {
     es: { panel: "Panel de revisión", feedback: "Notas / feedback", pubDate: "Fecha de publicación", moveTo: "Cambiar estado a:", save: "Guardar notas", saving: "Guardando..." },
@@ -123,7 +112,7 @@ export default function AdminReviewPanel({ post, locale }: { post: ContentPost; 
                     s === "rejected" || s === "cancelled" ? "#E2693E" : "#ECA040",
                 }}
               >
-                → {statusLabel[s]}
+                → {statusLabel(s)}
               </button>
             ))}
           </div>

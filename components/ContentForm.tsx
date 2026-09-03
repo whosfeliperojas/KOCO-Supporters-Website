@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
@@ -171,6 +171,23 @@ export default function ContentForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  // Co-authors, on the create form only. Once the post exists the credit list
+  // is edited from ContributorsPanel on the post page, so there is one editor
+  // for it rather than two that could disagree.
+  const [roster, setRoster] = useState<{ id: string; name: string }[]>([]);
+  const [coAuthors, setCoAuthors] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (post) return;
+    createClient()
+      .rpc("list_roster")
+      .then(({ data }) => {
+        const all = (data as { id: string; name: string }[]) ?? [];
+        // You are the lead; the trigger credits you already.
+        setRoster(all.filter((r) => r.id !== profileId));
+      });
+  }, [post, profileId]);
+
   const isReel = format === "Reel";
 
   const T = {
@@ -193,6 +210,8 @@ export default function ContentForm({
       titleTaken: "Este título ya está en uso", similarFound: "Ideas similares ya propuestas",
       similarHint: "Revisa que tu idea no repita una existente antes de enviar.",
       checking: "Buscando ideas similares...",
+      coAuthors: "Colaboradores/as", coAuthorsHint: "Si trabajaron en equipo, agrégalos aquí — quedan acreditados y verán el contenido en su lista.",
+      addCoAuthor: "Agregar persona...", coAuthorsNone: "Nadie más por ahora.",
     },
     en: {
       editTitle: "Edit content", newTitle: "New post",
@@ -213,6 +232,8 @@ export default function ContentForm({
       titleTaken: "This title is already taken", similarFound: "Similar ideas already proposed",
       similarHint: "Make sure your idea doesn't repeat an existing one before submitting.",
       checking: "Checking for similar ideas...",
+      coAuthors: "Collaborators", coAuthorsHint: "If you worked as a team, add them here — they get the credit and see the post in their list.",
+      addCoAuthor: "Add a person...", coAuthorsNone: "Nobody else yet.",
     },
     ko: {
       editTitle: "콘텐츠 수정", newTitle: "새 콘텐츠",
@@ -233,6 +254,8 @@ export default function ContentForm({
       titleTaken: "이미 사용 중인 제목이에요", similarFound: "비슷한 아이디어가 이미 있어요",
       similarHint: "제출 전에 기존 아이디어와 겹치지 않는지 확인해 주세요.",
       checking: "비슷한 아이디어 찾는 중...",
+      coAuthors: "함께한 사람", coAuthorsHint: "팀으로 작업했다면 여기에 추가하세요. 크레딧에 남고, 그분들 목록에도 이 콘텐츠가 보여요.",
+      addCoAuthor: "사람 추가...", coAuthorsNone: "아직 없어요.",
     },
   } as const;
   const Lx = T[locale];
@@ -344,6 +367,21 @@ export default function ContentForm({
       postId = data?.id;
     }
 
+    // Credit the co-authors. The lead row is written by the content_posts
+    // trigger, so only the collaborators are inserted here. ON CONFLICT is
+    // handled by ignoring the error: a duplicate just means they were already
+    // credited, which is the outcome we wanted anyway.
+    if (postId && coAuthors.length > 0) {
+      await supabase.from("content_post_contributors").insert(
+        coAuthors.map((profile_id) => ({
+          content_post_id: postId,
+          profile_id,
+          role: "collaborator",
+          source: "app",
+        })),
+      );
+    }
+
     // Upsert reel specs if Reel format
     if (isReel && postId) {
       await supabase.from("reel_specs").upsert({
@@ -439,6 +477,48 @@ export default function ContentForm({
             {CONTENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t[locale]}</option>)}
           </Select>
         </Field>
+
+        {/* Co-authors — create form only; afterwards the post page owns this */}
+        {!post && (
+          <Field label={L.coAuthors}>
+            <p className="text-xs mb-2" style={{ color: "#6B6258" }}>{L.coAuthorsHint}</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {coAuthors.length === 0 && (
+                <span className="text-xs" style={{ color: "#9A8F84" }}>{L.coAuthorsNone}</span>
+              )}
+              {coAuthors.map((id) => {
+                const person = roster.find((r) => r.id === id);
+                return (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full"
+                    style={{ backgroundColor: "#FFFFFF", border: "1.5px solid #E8DCCF", color: "#1C1C1C" }}
+                  >
+                    {person?.name ?? id}
+                    <button
+                      type="button"
+                      onClick={() => setCoAuthors(coAuthors.filter((c) => c !== id))}
+                      aria-label={`${L.coAuthors}: ${person?.name ?? id}`}
+                      className="ml-0.5 leading-none"
+                      style={{ color: "#B0A79C", fontSize: 14 }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+            <Select
+              value=""
+              onChange={(v) => { if (v) setCoAuthors([...coAuthors, v]); }}
+            >
+              <option value="">{L.addCoAuthor}</option>
+              {roster
+                .filter((r) => !coAuthors.includes(r.id))
+                .map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </Select>
+          </Field>
+        )}
 
         {/* Cycle + Date row */}
         <div className="grid grid-cols-2 gap-4">

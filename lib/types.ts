@@ -4,6 +4,11 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 
 export type ContentStatus =
   | "draft"
+  // The workbook's own Estatus values. "Sin comenzar" and "En progreso" were
+  // both imported as draft and shown as "Borrador", a word the sheet never
+  // uses; migration 17 separated them.
+  | "not_started"
+  | "in_progress"
   | "submitted"
   | "in_review"
   | "approved"
@@ -86,7 +91,10 @@ export interface EventAttendee {
   event_id: string;
   volunteer_id: string;
   role: AttendeeRole;
+  /** NULL until an admin records whether they actually turned up. */
   attended: boolean | null;
+  /** Answered once at signup and permanent - see migration 04. */
+  rsvp: "accepted" | "declined";
   signed_up_at: string;
   // Joined
   volunteer?: Profile;
@@ -118,6 +126,8 @@ export interface ContentPost {
   hashtags: string | null;
   design_url: string | null;
   preview_url: string | null;
+  /** Workbook Responsable said "Colaboraciones" - the team worked on it together. */
+  is_collaboration: boolean;
   admin_notes: string | null;
   submitted_at: string | null;
   reviewed_at: string | null;
@@ -131,6 +141,28 @@ export interface ContentPost {
   publication_cycle?: PublicationCycle;
   reel_specs?: ReelSpecs;
 }
+
+/**
+ * One person credited on a post. `responsible_id` above stays the single
+ * accountable lead; this is the full credit list, including the collaborators
+ * recovered from the Parrilla cell comments.
+ *
+ * `name` comes from list_post_contributors, not from a join: volunteers may
+ * read only their own profiles row, so an ordinary join returns nulls for
+ * everyone else. That function returns the stored full_name for everyone —
+ * the roster has four Lauras, so first names alone are not identifying.
+ */
+export interface Contributor {
+  content_post_id: string;
+  profile_id: string;
+  name: string;
+  role: "lead" | "collaborator";
+  /** app = added in the app; the other two are the imported record. */
+  source: "app" | "sheet_comment" | "team_credit";
+}
+
+/** post id -> everyone credited on it, lead first. */
+export type ContributorMap = Record<string, Contributor[]>;
 
 export interface ReelSpecs {
   id: string;

@@ -216,6 +216,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* Status chip colors */
 .chip-draft     { background: rgba(236,160,64,0.15);  color: #B07A1A; }
+/* Workbook Estatus values the sheet distinguishes and the app must too:
+   "Sin comenzar" (nothing started yet) vs "En progreso" (being worked on). */
+.chip-not_started { background: rgba(0,0,0,0.06);     color: #6B6258; }
+.chip-in_progress { background: rgba(236,160,64,0.20); color: #B07A1A; }
 .chip-submitted { background: rgba(236,160,64,0.15);  color: #B07A1A; }
 .chip-in_review { background: rgba(56,179,158,0.15);  color: #1F7A6E; }
 .chip-approved  { background: rgba(205,217,9,0.15);   color: #6E7A00; }

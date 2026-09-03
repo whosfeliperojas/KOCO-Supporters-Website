@@ -1,35 +1,32 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import ContentForm from "@/components/ContentForm";
 import AdminReviewPanel from "@/components/AdminReviewPanel";
+import ContributorsPanel from "@/components/ContributorsPanel";
+import { fetchContributors } from "@/lib/contributors";
+import { CONTENT_STATUS_LABEL as STATUS_LABEL } from "@/lib/i18n";
 import type { Profile, ContentPost, ContentStatus } from "@/lib/types";
 
-const STATUS_LABEL: Record<ContentStatus, { es: string; en: string; ko: string }> = {
-  draft:        { es: "Borrador",    en: "Draft",       ko: "임시 저장" },
-  submitted:    { es: "Enviado",     en: "Submitted",   ko: "제출됨" },
-  in_review:    { es: "En revisión", en: "In review",   ko: "검토 중" },
-  approved:     { es: "Aprobado",    en: "Approved",    ko: "승인됨" },
-  published:    { es: "Publicado",   en: "Published",   ko: "게시됨" },
-  rejected:     { es: "Rechazado",   en: "Rejected",    ko: "반려됨" },
-  cancelled:    { es: "Cancelado",   en: "Cancelled",   ko: "취소됨" },
-  rescheduled:  { es: "Reagendado",  en: "Rescheduled", ko: "일정 변경" },
-};
 
 const PANEL_T = {
   es: {
     statusTitle: "Estado de tu propuesta", pubDate: "Fecha de publicación",
     channel: "Canal", format: "Formato", comments: "Comentarios del equipo",
     noComments: "Aún no hay comentarios del equipo.", noDate: "Por definir",
+    back: "← Volver a contenidos",
   },
   en: {
     statusTitle: "Your proposal status", pubDate: "Publication date",
     channel: "Channel", format: "Format", comments: "Team comments",
     noComments: "No team comments yet.", noDate: "To be defined",
+    back: "← Back to content",
   },
   ko: {
     statusTitle: "제안 진행 상황", pubDate: "게시일",
     channel: "채널", format: "포맷", comments: "팀 피드백",
     noComments: "아직 팀 피드백이 없어요.", noDate: "미정",
+    back: "← 콘텐츠로 돌아가기",
   },
 } as const;
 
@@ -51,16 +48,35 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
   const post = postRes.data as ContentPost | null;
   if (!post) notFound();
 
+  // Everyone credited on the post, lead first. RLS already let this request
+  // through, so anyone reaching here may see the credit list.
+  const contributorMap = await fetchContributors(supabase, [post.id]);
+  const contributors = contributorMap[post.id] ?? [];
+
   const isOwner = post.responsible_id === profile.id;
+  const isContributor = contributors.some((c) => c.profile_id === profile.id);
   const canEdit = profile.is_admin || (isOwner && ["draft", "submitted", "rejected"].includes(post.status));
 
-  if (!canEdit && !isOwner && !profile.is_admin) redirect("/content");
+  // A collaborator can read the post they worked on, but not edit it — editing
+  // stays with the lead and admins, matching posts_update_own.
+  if (!canEdit && !isOwner && !isContributor && !profile.is_admin) redirect("/content");
 
   const T = PANEL_T[profile.locale];
   const feedback = [post.admin_notes, post.review_feedback].filter(Boolean).join("\n\n");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Returning through this link restores the list's scroll position, so a
+          post opened from the middle of ~90 rows does not send you back to the
+          top (see lib/use-scroll-restoration). */}
+      <Link
+        href={profile.is_admin ? "/admin/content" : "/content"}
+        className="inline-block text-sm font-bold btn-hover"
+        style={{ color: "#38B39E" }}
+      >
+        {T.back}
+      </Link>
+
       {/* Admin: full review controls */}
       {profile.is_admin && (
         <AdminReviewPanel post={post} locale={profile.locale} />
@@ -90,6 +106,15 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       )}
+
+      {/* Credit list — visible to everyone who can open the post. The lead can
+          edit it while the post is still editable; admins always can. */}
+      <ContributorsPanel
+        postId={post.id}
+        contributors={contributors}
+        canEdit={canEdit}
+        isAdmin={profile.is_admin}
+      />
 
       {canEdit ? (
         <ContentForm

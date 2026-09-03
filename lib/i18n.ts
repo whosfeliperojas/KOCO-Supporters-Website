@@ -5,6 +5,32 @@
 
 export type Locale = "es" | "en" | "ko";
 
+/**
+ * The one place a content status is turned into words.
+ *
+ * The Spanish labels are the workbook's own Estatus vocabulary, verbatim -
+ * Sin comenzar, En progreso, Aprobado, Publicado, Rechazado, Eliminado - so
+ * the app and the sheet it replaced call the same thing by the same name.
+ * This map used to be copied into four files, which is how "En progreso" and
+ * "Sin comenzar" both went on showing as "Borrador" long after the import.
+ * Import it; do not re-declare it.
+ */
+export const CONTENT_STATUS_LABEL = {
+  // Workbook Estatus values
+  not_started:  { es: "Sin comenzar", en: "Not started", ko: "시작 전" },
+  in_progress:  { es: "En progreso",  en: "In progress", ko: "진행 중" },
+  approved:     { es: "Aprobado",     en: "Approved",    ko: "승인됨" },
+  published:    { es: "Publicado",    en: "Published",   ko: "게시됨" },
+  rejected:     { es: "Rechazado",    en: "Rejected",    ko: "반려됨" },
+  // The sheet writes "Eliminado" where the app models a cancellation.
+  cancelled:    { es: "Eliminado",    en: "Deleted",     ko: "삭제됨" },
+  // App-only states, with no counterpart in the workbook
+  draft:        { es: "Borrador",     en: "Draft",       ko: "임시 저장" },
+  submitted:    { es: "Enviado",      en: "Submitted",   ko: "제출됨" },
+  in_review:    { es: "En revisión",  en: "In review",   ko: "검토 중" },
+  rescheduled:  { es: "Reagendado",   en: "Rescheduled", ko: "일정 변경" },
+} as const;
+
 /** BCP-47 tags for date/number formatting per app locale */
 export const DATE_LOCALE: Record<Locale, string> = {
   es: "es-CO",
@@ -27,16 +53,7 @@ export const translations = {
     admin:      { es: "Administrar",   en: "Admin",      ko: "관리" },
     signOut:    { es: "Cerrar sesión", en: "Sign out",   ko: "로그아웃" },
   },
-  status: {
-    draft:        { es: "Borrador",    en: "Draft",       ko: "임시 저장" },
-    submitted:    { es: "Enviado",     en: "Submitted",   ko: "제출됨" },
-    in_review:    { es: "En revisión", en: "In review",   ko: "검토 중" },
-    approved:     { es: "Aprobado",    en: "Approved",    ko: "승인됨" },
-    published:    { es: "Publicado",   en: "Published",   ko: "게시됨" },
-    rejected:     { es: "Rechazado",   en: "Rejected",    ko: "반려됨" },
-    cancelled:    { es: "Cancelado",   en: "Cancelled",   ko: "취소됨" },
-    rescheduled:  { es: "Reagendado",  en: "Rescheduled", ko: "일정 변경" },
-  },
+  status: CONTENT_STATUS_LABEL,
   dashboard: {
     greeting:      { es: "Hola",                en: "Hello",             ko: "안녕하세요" },
     totalPoints:   { es: "Puntos totales",      en: "Total points",      ko: "전체 포인트" },

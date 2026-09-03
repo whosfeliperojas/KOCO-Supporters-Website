@@ -5,23 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
-import { DATE_LOCALE } from "@/lib/i18n";
-import type { ContentStatus } from "@/lib/types";
+import { useScrollRestoration } from "@/lib/use-scroll-restoration";
+import { DATE_LOCALE, CONTENT_STATUS_LABEL as STATUS_LABEL } from "@/lib/i18n";
+import type { ContentStatus, ContributorMap } from "@/lib/types";
 
-const STATUS_LABEL: Record<ContentStatus, { es: string; en: string; ko: string }> = {
-  draft:        { es: "Borrador",    en: "Draft",       ko: "임시 저장" },
-  submitted:    { es: "Enviado",     en: "Submitted",   ko: "제출됨" },
-  in_review:    { es: "En revisión", en: "In review",   ko: "검토 중" },
-  approved:     { es: "Aprobado",    en: "Approved",    ko: "승인됨" },
-  published:    { es: "Publicado",   en: "Published",   ko: "게시됨" },
-  rejected:     { es: "Rechazado",   en: "Rejected",    ko: "반려됨" },
-  cancelled:    { es: "Cancelado",   en: "Cancelled",   ko: "취소됨" },
-  rescheduled:  { es: "Reagendado",  en: "Rescheduled", ko: "일정 변경" },
-};
 
 // Calendar dot colors per status (chip palette)
 const STATUS_DOT: Record<string, string> = {
-  draft: "#ECA040", submitted: "#ECA040", in_review: "#38B39E",
+  draft: "#ECA040", not_started: "#B0A79C", in_progress: "#ECA040",
+  submitted: "#ECA040", in_review: "#38B39E",
   approved: "#CDD909", published: "#1C1C1C", rejected: "#E2693E",
   cancelled: "#999999", rescheduled: "#CDD909",
 };
@@ -50,6 +42,8 @@ type Post = {
   publication_cycle_id: string | null;
   design_url: string | null;
   caption: string | null;
+  /** Workbook Responsable said "Colaboraciones" - a team effort. */
+  is_collaboration: boolean;
 };
 
 type Grid = "general" | "final";
@@ -125,11 +119,17 @@ function responsibleName(p: Post) {
 export default function ContentListClient({
   posts,
   cycles,
+  contributors,
+  viewerId,
   isAdmin,
   locale: initialLocale,
 }: {
   posts: Post[];
   cycles: { id: string; label: string | null; cycle_number: number; final_deadline: string | null }[];
+  /** post id -> everyone credited on it. Empty when the lookup failed. */
+  contributors: ContributorMap;
+  /** The signed-in profile, to tell "I led this" from "I helped on this". */
+  viewerId: string;
   isAdmin: boolean;
   locale: "es" | "en" | "ko";
 }) {
@@ -160,6 +160,29 @@ export default function ContentListClient({
     return cycles.find((c) => c.id === cycleId)?.label ?? null;
   }
 
+  /**
+   * The people credited beyond the lead, as one short line. Two names fit;
+   * beyond that the row would wrap, so the rest collapse into "+N" and the
+   * full list stays in the title attribute and on the post page.
+   */
+  function creditLine(postId: string) {
+    const others = (contributors[postId] ?? []).filter((c) => c.role !== "lead");
+    if (others.length === 0) return null;
+    const names = others.map((c) => c.name);
+    const shown = names.slice(0, 2).join(", ");
+    return {
+      short: names.length > 2 ? `${shown} +${names.length - 2}` : shown,
+      full: names.join(", "),
+    };
+  }
+
+  /** A post the viewer helped on but does not lead. Volunteers only. */
+  function isCollaboration(post: Post) {
+    if (isAdmin) return false;
+    const mine = (contributors[post.id] ?? []).find((c) => c.profile_id === viewerId);
+    return !!mine && mine.role !== "lead";
+  }
+
   async function toggleFinal(post: Post) {
     setSavingGridId(post.id);
     const supabase = createClient();
@@ -175,6 +198,13 @@ export default function ContentListClient({
   const [volView, setVolView] = useState<"mine" | "team">("mine");
   const [teamIdeas, setTeamIdeas] = useState<SharedIdea[] | null>(null);
   const [teamStatus, setTeamStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
+
+  // Come back to the row you opened, not to the top of ~90 of them. Keyed by
+  // the exact list on screen so switching grid or tab does not restore an
+  // offset measured against a different set of rows.
+  useScrollRestoration(
+    isAdmin ? `admin-content:${view}:${grid}` : `content:${volView}`,
+  );
 
   async function openTeamView() {
     setVolView("team");
@@ -198,6 +228,7 @@ export default function ContentListClient({
       list: "Lista", calendar: "Calendario", prev: "Ant", next: "Sig", grid: "Parrilla", gridGeneral: "General", gridFinal: "Final", inFinal: "En final", addToFinal: "+ Final", addToFinalHint: "Agregar a la parrilla final", removeFromFinalHint: "Quitar de la parrilla final", dupBadge: "Duplicado?", dupTitle: "Posible duplicado de",
       noPosts: "Sin publicaciones este día", changeDate: "Cambiar fecha", open: "Abrir",
       unscheduled: "Sin fecha programada",
+      withCollab: "con", collabBadge: "Colaboración", collabTeam: "Colaboraciones", collabHint: "Participaste en este contenido; lo lidera otra persona.",
       weekDays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
       mine: "Mis ideas", team: "Equipo",
       teamHint: "Mira lo que están creando tus compañeros/as para no repetir ideas.",
@@ -212,6 +243,7 @@ export default function ContentListClient({
       list: "List", calendar: "Calendar", prev: "Prev", next: "Next", grid: "Grid", gridGeneral: "General", gridFinal: "Final", inFinal: "In final", addToFinal: "+ Final", addToFinalHint: "Add to the final grid", removeFromFinalHint: "Remove from the final grid", dupBadge: "Duplicate?", dupTitle: "Possible duplicate of",
       noPosts: "Nothing scheduled this day", changeDate: "Change date", open: "Open",
       unscheduled: "No date scheduled",
+      withCollab: "with", collabBadge: "Collaboration", collabTeam: "Colaboraciones", collabHint: "You worked on this one; someone else leads it.",
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       mine: "My ideas", team: "Team",
       teamHint: "See what your teammates are creating so ideas don't repeat.",
@@ -226,6 +258,7 @@ export default function ContentListClient({
       list: "목록", calendar: "캘린더", prev: "이전", next: "다음", grid: "그리드", gridGeneral: "전체", gridFinal: "최종", inFinal: "최종 포함", addToFinal: "+ 최종", addToFinalHint: "최종 그리드에 추가", removeFromFinalHint: "최종 그리드에서 제외", dupBadge: "중복?", dupTitle: "중복 가능성",
       noPosts: "이 날짜에는 게시물이 없어요", changeDate: "날짜 변경", open: "열기",
       unscheduled: "게시일 미정",
+      withCollab: "함께", collabBadge: "협업", collabTeam: "Colaboraciones", collabHint: "담당자는 다른 사람이지만 함께 참여한 콘텐츠예요.",
       weekDays: ["일", "월", "화", "수", "목", "금", "토"],
       mine: "내 아이디어", team: "팀",
       teamHint: "친구들이 만들고 있는 콘텐츠를 둘러보고 아이디어가 겹치지 않게 해요.",
@@ -340,13 +373,25 @@ export default function ContentListClient({
 
   function PostCard({ post, i }: { post: Post; i: number }) {
     const name = responsibleName(post);
+    const credit = creditLine(post.id);
     return (
       <div className="rounded-2xl p-4 shadow-koco anim-in" style={{ backgroundColor: "#FFFFFF", "--i": Math.min(i, 8) } as React.CSSProperties}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate" style={{ color: "#1C1C1C" }}>{post.title}</p>
-            <p className="text-xs mt-0.5" style={{ color: "#888" }}>
-              {[post.channel, post.format, name ? `${L.by} ${name}` : null].filter(Boolean).join(" · ")}
+            <p
+              className="text-xs mt-0.5 truncate"
+              style={{ color: "#888" }}
+              title={credit ? `${L.withCollab} ${credit.full}` : undefined}
+            >
+              {[
+                post.channel,
+                post.format,
+                name ? `${L.by} ${name}` : null,
+                credit ? `${L.withCollab} ${credit.short}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </div>
           <StatusChip status={post.status} />
@@ -559,6 +604,8 @@ export default function ContentListClient({
             {shownPosts.map((post, i) => {
               const dupOf = duplicates[post.id];
               const cycle = cycleLabel(post.publication_cycle_id);
+              const credit = creditLine(post.id);
+              const collab = isCollaboration(post);
               return (
                 <div
                   key={post.id}
@@ -582,10 +629,27 @@ export default function ContentListClient({
                           {L.dupBadge}
                         </span>
                       )}
+                      {collab && (
+                        <span
+                          title={L.collabHint}
+                          className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                          style={{ backgroundColor: "rgba(56,179,158,0.15)", color: "#1F7A6E" }}
+                        >
+                          {L.collabBadge}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs truncate" style={{ color: "#6B6258" }}>
+                    <p
+                      className="text-xs truncate"
+                      style={{ color: "#6B6258" }}
+                      title={credit ? `${L.withCollab} ${credit.full}` : undefined}
+                    >
                       {[
                         isAdmin && post.responsible ? `${L.by} ${responsibleName(post)}` : null,
+                        credit ? `${L.withCollab} ${credit.short}` : null,
+                        // A collaboration the workbook never attributed: say so
+                        // rather than leaving the row looking authorless.
+                        !post.responsible && !credit && post.is_collaboration ? L.collabTeam : null,
                         post.channel,
                         cycle,
                       ]

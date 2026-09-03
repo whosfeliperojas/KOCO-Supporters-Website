@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import { DATE_LOCALE } from "@/lib/i18n";
+import EventAttendeesPanel, { type EventSignup } from "@/components/EventAttendeesPanel";
 
 type Event = {
   id: string;
@@ -28,11 +29,17 @@ type Event = {
 export default function AdminEventsClient({
   events,
   acceptedCounts,
+  signupsByEvent,
+  roster,
   adminId,
   locale: initialLocale,
 }: {
   events: Event[];
   acceptedCounts: Record<string, number>;
+  /** event id -> everyone signed up, oldest signup first. */
+  signupsByEvent: Record<string, EventSignup[]>;
+  /** Active volunteers, for adding someone to an event by hand. */
+  roster: { id: string; full_name: string }[];
   adminId: string;
   locale: "es" | "en" | "ko";
 }) {
@@ -330,7 +337,8 @@ export default function AdminEventsClient({
             const isOpen = ev.registration_status === "open";
             const isDead = ev.approval_status === "cancelled" || ev.approval_status === "rejected";
             return (
-              <div key={ev.id} className="rounded-2xl p-4 shadow-koco flex items-start justify-between gap-3" style={{ backgroundColor: "#F8F0DE" }}>
+              <div key={ev.id} className="rounded-2xl p-4 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
+                <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p
@@ -423,6 +431,15 @@ export default function AdminEventsClient({
                     </button>
                   )}
                 </div>
+                </div>
+
+                {/* Who signed up, and attendance. Full width under the card so
+                    the list is not squeezed next to the action buttons. */}
+                <EventAttendeesPanel
+                  eventId={ev.id}
+                  signups={signupsByEvent[ev.id] ?? []}
+                  roster={roster}
+                />
               </div>
             );
           })
