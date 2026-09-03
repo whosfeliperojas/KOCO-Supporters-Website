@@ -55,13 +55,13 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
 
   const isOwner = post.responsible_id === profile.id;
   const isContributor = contributors.some((c) => c.profile_id === profile.id);
-  // The owner may edit their own post in any state (migration 24). Most of the
-  // migrated posts arrived marked "Publicado" while still being worked on, and
-  // an author could not touch their own work at all. What may CHANGE is
-  // narrowed by guard_volunteer_edits, not by hiding the form: on a settled
-  // post the copy, script and links stay editable while the status and
-  // schedule do not.
-  const canEdit = profile.is_admin || isOwner;
+  // The owner may edit their own post in any state (migration 24), and anyone
+  // credited on it may edit the content (migration 26) — 31 collaborations
+  // came from the sheet with no lead at all, so their authors could see the
+  // work and not touch it. What may CHANGE is narrowed by
+  // guard_volunteer_edits, not by hiding the form: a collaborator corrects the
+  // copy, the lead decides when it moves.
+  const canEdit = profile.is_admin || isOwner || isContributor;
 
   // A collaborator can read the post they worked on, but not edit it — editing
   // stays with the lead and admins, matching posts_update_own.
@@ -136,6 +136,7 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
           locale={profile.locale}
           cycles={cyclesRes.data ?? []}
           post={post}
+          isLead={profile.is_admin || isOwner}
         />
       ) : (
         <div className="rounded-2xl p-6 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>

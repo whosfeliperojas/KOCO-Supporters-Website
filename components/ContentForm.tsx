@@ -137,11 +137,19 @@ export default function ContentForm({
   locale: initialLocale,
   cycles,
   post,
+  isLead = true,
 }: {
   profileId: string;
   locale: "es" | "en" | "ko";
   cycles: Cycle[];
   post: ContentPost | null;
+  /**
+   * Is the viewer the person responsible? A credited collaborator may improve
+   * the content but not move the post: submitting stays with the lead, which
+   * is what responsible_id exists to record. True when creating, because the
+   * author of a new post becomes its lead.
+   */
+  isLead?: boolean;
 }) {
   const { locale } = useLocale();
   const router = useRouter();
@@ -198,6 +206,9 @@ export default function ContentForm({
   // stay with the admins (enforced by guard_volunteer_edits, migration 24).
   const SETTLED = ["approved", "published", "rescheduled", "cancelled"];
   const isSettled = !!post && SETTLED.includes(post.status);
+  // Status and schedule move only when the lead acts on a post that is not yet
+  // settled. Everyone else editing here is correcting content.
+  const canMoveStatus = isLead && !isSettled;
 
   const T = {
     es: {
@@ -221,6 +232,7 @@ export default function ContentForm({
       checking: "Buscando ideas similares...",
       saveChanges: "Guardar cambios", saveFailed: "No se pudo guardar.",
       settledNote: "Este contenido ya está aprobado o publicado. Puedes corregir el texto, el guion y los enlaces; la fecha y el estado los cambia un administrador.",
+      collabNote: "Colaboras en este contenido. Puedes mejorar el texto, el guion y los enlaces; quien lo lidera decide cuándo enviarlo a revisión.",
       coAuthors: "Colaboradores/as", coAuthorsHint: "Si trabajaron en equipo, agrégalos aquí — quedan acreditados y verán el contenido en su lista.",
       addCoAuthor: "Agregar persona...", coAuthorsNone: "Nadie más por ahora.",
     },
@@ -245,6 +257,7 @@ export default function ContentForm({
       checking: "Checking for similar ideas...",
       saveChanges: "Save changes", saveFailed: "Couldn't save.",
       settledNote: "This post is already approved or published. You can still fix the copy, script and links; the date and status are changed by an admin.",
+      collabNote: "You are credited on this post. You can improve the copy, script and links; the person leading it decides when it goes for review.",
       coAuthors: "Collaborators", coAuthorsHint: "If you worked as a team, add them here — they get the credit and see the post in their list.",
       addCoAuthor: "Add a person...", coAuthorsNone: "Nobody else yet.",
     },
@@ -269,6 +282,7 @@ export default function ContentForm({
       checking: "비슷한 아이디어 찾는 중...",
       saveChanges: "변경사항 저장", saveFailed: "저장하지 못했어요.",
       settledNote: "이미 승인되었거나 게시된 콘텐츠예요. 카피, 스크립트, 링크는 수정할 수 있고 날짜와 상태는 관리자가 변경해요.",
+      collabNote: "함께 참여한 콘텐츠예요. 카피, 스크립트, 링크는 다듬을 수 있고 검토 요청 시점은 담당자가 정해요.",
       coAuthors: "함께한 사람", coAuthorsHint: "팀으로 작업했다면 여기에 추가하세요. 크레딧에 남고, 그분들 목록에도 이 콘텐츠가 보여요.",
       addCoAuthor: "사람 추가...", coAuthorsNone: "아직 없어요.",
     },
@@ -369,19 +383,23 @@ export default function ContentForm({
       caption: caption || null,
       script: script || null,
       hashtags: hashtags || null,
-      responsible_id: profileId,
+      // responsible_id is set when the post is CREATED and never rewritten.
+      // Sending it on every save was a no-op for the lead but an ownership
+      // takeover for a collaborator, which the database rejects — their save
+      // would have failed on a field they never touched.
+      ...(post ? {} : { responsible_id: profileId }),
       // Saving an edit to a published post must not send it back to draft —
-      // that would silently un-publish it. Settled posts keep their status and
-      // their schedule; everything else follows the button that was pressed.
-      ...(isSettled
+      // that would silently un-publish it. A collaborator likewise leaves the
+      // schedule alone. Both keep whatever the post already has.
+      ...(canMoveStatus
         ? {
+            status: (submitForReview ? "submitted" : "draft") as ContentStatus,
+            ...(submitForReview ? { submitted_at: new Date().toISOString() } : {}),
+          }
+        : {
             status: post!.status,
             publication_date: post!.publication_date,
             publication_cycle_id: post!.publication_cycle_id,
-          }
-        : {
-            status: (submitForReview ? "submitted" : "draft") as ContentStatus,
-            ...(submitForReview ? { submitted_at: new Date().toISOString() } : {}),
           }),
     };
 
@@ -458,12 +476,12 @@ export default function ContentForm({
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.pageTitle}</h1>
 
-      {isSettled && (
+      {(isSettled || !isLead) && (
         <div
           className="rounded-xl px-4 py-3 text-xs"
           style={{ backgroundColor: "rgba(56,179,158,0.10)", color: "#1F7A6E" }}
         >
-          {L.settledNote}
+          {isLead ? L.settledNote : L.collabNote}
         </div>
       )}
 
@@ -572,7 +590,7 @@ export default function ContentForm({
           <Field label={L.cycle} error={errors.cycleId}>
             {/* Disabled on a settled post: guard_volunteer_edits would refuse
                 the write, so offering the control would only produce an error. */}
-            <Select value={cycleId} onChange={setCycleId} hasError={!!errors.cycleId} disabled={isSettled}>
+            <Select value={cycleId} onChange={setCycleId} hasError={!!errors.cycleId} disabled={!canMoveStatus}>
               <option value="">{L.select}</option>
               {cycles.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -583,7 +601,7 @@ export default function ContentForm({
             </Select>
           </Field>
           <Field label={L.pubDate} error={errors.pubDate}>
-            <Input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} hasError={!!errors.pubDate} disabled={isSettled} />
+            <Input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} hasError={!!errors.pubDate} disabled={!canMoveStatus} />
           </Field>
         </div>
 
@@ -708,15 +726,16 @@ export default function ContentForm({
           disabled={saving}
           className="flex-1 py-3 rounded-lg font-bold text-sm btn-hover"
           style={
-            isSettled
-              ? { backgroundColor: "#ECA040", color: "#FFFFFF" }
-              : { backgroundColor: "transparent", border: "2px solid #38B39E", color: "#38B39E" }
+            canMoveStatus
+              ? { backgroundColor: "transparent", border: "2px solid #38B39E", color: "#38B39E" }
+              : { backgroundColor: "#ECA040", color: "#FFFFFF" }
           }
         >
-          {saving ? L.saving : isSettled ? L.saveChanges : L.saveDraft}
+          {saving ? L.saving : canMoveStatus ? L.saveDraft : L.saveChanges}
         </button>
-        {/* Nothing to submit for review on a post that is already decided. */}
-        {!isSettled && (
+        {/* Nothing to submit on a decided post, and a collaborator does not
+            decide when shared work goes to review — the lead does. */}
+        {canMoveStatus && (
           <button
             onClick={() => save(true)}
             disabled={saving}
