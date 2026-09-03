@@ -52,7 +52,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not your post" }, { status: 403 });
   }
 
-  const vectorData = await embed(postText(post), "passage");
+  // Indexing a post for future similarity search is a nicety. The post is
+  // already saved by the time this runs, so a model that cannot load must not
+  // turn into a red error in the volunteer's console.
+  let vectorData: number[];
+  try {
+    vectorData = await embed(postText(post), "passage");
+  } catch (e) {
+    console.warn("[embed-post] semantic indexing skipped:", (e as Error).message);
+    return NextResponse.json({ ok: true, indexed: false });
+  }
+
   const { error } = await admin
     .from("content_posts")
     .update({ embedding: JSON.stringify(vectorData) })
@@ -61,5 +71,5 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, indexed: true });
 }

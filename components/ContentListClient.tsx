@@ -149,8 +149,14 @@ export default function ContentListClient({
 
   // Admins browse one grid at a time; volunteers see their own posts, which
   // have no grid concept.
+  //
+  // A post belonging to neither grid falls back to General rather than
+  // vanishing. Both columns used to default to false, so every proposal made
+  // in the app was invisible under both toggle positions - the review tab
+  // silently hid the very thing it exists to show. Migration 18 fixed the
+  // default; this makes the tab incapable of hiding a post again.
   const shownPosts = isAdmin
-    ? posts.filter((p) => (grid === "final" ? p.in_final : p.in_general))
+    ? posts.filter((p) => (grid === "final" ? p.in_final : p.in_general || !p.in_final))
     : posts;
 
   const duplicates = findDuplicates(shownPosts);

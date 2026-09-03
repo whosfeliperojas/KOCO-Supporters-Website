@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { embed } from "@/lib/embeddings";
+import { embed, embeddingsEnabled } from "@/lib/embeddings";
 import { checkRateLimit, clientIdentifier } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
   // 2. Semantic near-duplicates (embedding + pgvector)
   let similar: unknown[] = [];
   const searchText = [title, text].filter(Boolean).join("\n");
-  if (searchText.length >= 8) {
+  // Skip the model entirely when it is off: on a host that cannot run it,
+  // trying costs a cold start's worth of download on every request.
+  if (embeddingsEnabled() && searchText.length >= 8) {
     try {
       const queryEmbedding = await embed(searchText, "query");
       const { data } = await supabase.rpc("match_similar_ideas", {
@@ -57,9 +59,10 @@ export async function POST(request: NextRequest) {
       // Only surface meaningful matches
       similar = (data ?? []).filter((r: { similarity: number }) => r.similarity > 0.86);
     } catch (e) {
-      // Embedding model unavailable (e.g. first download interrupted) —
-      // title check still works; don't fail the request.
-      console.error("[similar-ideas] embedding failed:", (e as Error).message);
+      // Embedding model unavailable — the trigram title check above is the
+      // one that actually catches duplicate proposals, so return what we have
+      // rather than failing the request.
+      console.warn("[similar-ideas] semantic search skipped:", (e as Error).message);
     }
   }
 
