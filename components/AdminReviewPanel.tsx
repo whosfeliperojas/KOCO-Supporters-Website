@@ -41,9 +41,33 @@ export default function AdminReviewPanel({ post, locale }: { post: ContentPost; 
   const statusLabel = (st: ContentStatus) => CONTENT_STATUS_LABEL[st][locale];
 
   const T = {
-    es: { panel: "Panel de revisión", feedback: "Notas / feedback", pubDate: "Fecha de publicación", moveTo: "Cambiar estado a:", save: "Guardar notas", saving: "Guardando..." },
-    en: { panel: "Review panel", feedback: "Notes / feedback", pubDate: "Publication date", moveTo: "Change status to:", save: "Save notes", saving: "Saving..." },
-    ko: { panel: "검토 패널", feedback: "피드백 / 메모", pubDate: "게시일", moveTo: "상태 변경:", save: "메모 저장", saving: "저장 중..." },
+    es: {
+      panel: "Panel de revisión",
+      feedback: "Feedback para quien propuso el contenido",
+      // Admins could not tell that this field is delivered, so it read like a
+      // private note. It is what the volunteer sees under "Comentarios del
+      // equipo", and saving it now marks their copy as having news.
+      feedbackHint: "Lo verá en su contenido y le aparecerá como novedad.",
+      pubDate: "Fecha de publicación", moveTo: "Cambiar estado a:",
+      save: "Enviar feedback", saving: "Guardando...",
+      noLead: "Este contenido no tiene responsable asignado, así que nadie recibirá el feedback.",
+    },
+    en: {
+      panel: "Review panel",
+      feedback: "Feedback for the person who proposed it",
+      feedbackHint: "They see this on their post, and it is flagged to them as new.",
+      pubDate: "Publication date", moveTo: "Change status to:",
+      save: "Send feedback", saving: "Saving...",
+      noLead: "This post has nobody responsible, so no one will receive the feedback.",
+    },
+    ko: {
+      panel: "검토 패널",
+      feedback: "제안한 사람에게 전할 피드백",
+      feedbackHint: "해당 콘텐츠에서 확인할 수 있고, 새 소식으로 표시돼요.",
+      pubDate: "게시일", moveTo: "상태 변경:",
+      save: "피드백 보내기", saving: "저장 중...",
+      noLead: "담당자가 지정되지 않은 콘텐츠라 피드백을 받을 사람이 없어요.",
+    },
   } as const;
   const L = T[locale];
 
@@ -77,6 +101,9 @@ export default function AdminReviewPanel({ post, locale }: { post: ContentPost; 
 
       <div className="space-y-1">
         <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.feedback}</label>
+        <p className="text-xs" style={{ color: "#6B6258" }}>
+          {post.responsible_id ? L.feedbackHint : L.noLead}
+        </p>
         <textarea
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}

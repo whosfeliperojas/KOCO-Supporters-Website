@@ -138,6 +138,7 @@ export default function ContentForm({
   cycles,
   post,
   isLead = true,
+  isAdminView = false,
 }: {
   profileId: string;
   locale: "es" | "en" | "ko";
@@ -150,6 +151,13 @@ export default function ContentForm({
    * author of a new post becomes its lead.
    */
   isLead?: boolean;
+  /**
+   * An admin looking at someone's post. They edit content here, but the status
+   * and the schedule belong to AdminReviewPanel above — showing them "Enviar
+   * para revisión" as well put the post straight back into their own review
+   * queue, which read as the review looping forever.
+   */
+  isAdminView?: boolean;
 }) {
   const { locale } = useLocale();
   const router = useRouter();
@@ -208,7 +216,10 @@ export default function ContentForm({
   const isSettled = !!post && SETTLED.includes(post.status);
   // Status and schedule move only when the lead acts on a post that is not yet
   // settled. Everyone else editing here is correcting content.
-  const canMoveStatus = isLead && !isSettled;
+  // On an existing post an admin never moves the status from here — that is
+  // what the review panel is for, and it is the only place with the proper
+  // transitions. Creating a post is unaffected.
+  const canMoveStatus = post ? isLead && !isSettled && !isAdminView : true;
 
   // The Reel checklist is a gate for SUBMITTING a reel, not a property of one.
   // Showing it on an already-published post asked someone to confirm the specs
@@ -241,6 +252,7 @@ export default function ContentForm({
       saveChanges: "Guardar cambios", saveFailed: "No se pudo guardar.",
       settledNote: "Este contenido ya está aprobado o publicado. Puedes corregir el texto, el guion y los enlaces; la fecha y el estado los cambia un administrador.",
       collabNote: "Colaboras en este contenido. Puedes mejorar el texto, el guion y los enlaces; quien lo lidera decide cuándo enviarlo a revisión.",
+      adminNote: "Aquí editas el contenido. El estado, la fecha y el feedback se manejan en el panel de revisión de arriba.",
       coAuthors: "Colaboradores/as", coAuthorsHint: "Si trabajaron en equipo, agrégalos aquí — quedan acreditados y verán el contenido en su lista.",
       addCoAuthor: "Agregar persona...", coAuthorsNone: "Nadie más por ahora.",
     },
@@ -266,6 +278,7 @@ export default function ContentForm({
       saveChanges: "Save changes", saveFailed: "Couldn't save.",
       settledNote: "This post is already approved or published. You can still fix the copy, script and links; the date and status are changed by an admin.",
       collabNote: "You are credited on this post. You can improve the copy, script and links; the person leading it decides when it goes for review.",
+      adminNote: "Content edits go here. Status, date and feedback are handled in the review panel above.",
       coAuthors: "Collaborators", coAuthorsHint: "If you worked as a team, add them here — they get the credit and see the post in their list.",
       addCoAuthor: "Add a person...", coAuthorsNone: "Nobody else yet.",
     },
@@ -291,6 +304,7 @@ export default function ContentForm({
       saveChanges: "변경사항 저장", saveFailed: "저장하지 못했어요.",
       settledNote: "이미 승인되었거나 게시된 콘텐츠예요. 카피, 스크립트, 링크는 수정할 수 있고 날짜와 상태는 관리자가 변경해요.",
       collabNote: "함께 참여한 콘텐츠예요. 카피, 스크립트, 링크는 다듬을 수 있고 검토 요청 시점은 담당자가 정해요.",
+      adminNote: "여기서는 내용을 수정해요. 상태와 날짜, 피드백은 위의 검토 패널에서 처리해요.",
       coAuthors: "함께한 사람", coAuthorsHint: "팀으로 작업했다면 여기에 추가하세요. 크레딧에 남고, 그분들 목록에도 이 콘텐츠가 보여요.",
       addCoAuthor: "사람 추가...", coAuthorsNone: "아직 없어요.",
     },
@@ -486,12 +500,12 @@ export default function ContentForm({
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.pageTitle}</h1>
 
-      {(isSettled || !isLead) && (
+      {(isSettled || !isLead || isAdminView) && (
         <div
           className="rounded-xl px-4 py-3 text-xs"
           style={{ backgroundColor: "rgba(56,179,158,0.10)", color: "#1F7A6E" }}
         >
-          {isLead ? L.settledNote : L.collabNote}
+          {isAdminView ? L.adminNote : isLead ? L.settledNote : L.collabNote}
         </div>
       )}
 

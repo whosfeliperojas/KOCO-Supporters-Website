@@ -137,6 +137,7 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
           cycles={cyclesRes.data ?? []}
           post={post}
           isLead={profile.is_admin || isOwner}
+          isAdminView={profile.is_admin}
         />
       ) : (
         <div className="rounded-2xl p-6 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
