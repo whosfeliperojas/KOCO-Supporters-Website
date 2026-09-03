@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
-import type { ContentPost } from "@/lib/types";
+import type { ContentPost, ContentStatus } from "@/lib/types";
 
 // Stored values stay canonical (existing DB rows use them); labels localize per language
 const FORMATS: { value: string; es: string; en: string; ko: string }[] = [
@@ -93,14 +93,16 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { h
   );
 }
 
-function Select({ children, value, onChange, hasError }: {
+function Select({ children, value, onChange, hasError, disabled }: {
   children: React.ReactNode;
   value: string;
   onChange: (v: string) => void;
   hasError?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <select
+      disabled={disabled}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
@@ -190,6 +192,13 @@ export default function ContentForm({
 
   const isReel = format === "Reel";
 
+  // A post that has already been approved, published, rescheduled or cancelled.
+  // Its author may still correct the content — most of the migrated posts are
+  // "Publicado" but still being worked on — while the status and the schedule
+  // stay with the admins (enforced by guard_volunteer_edits, migration 24).
+  const SETTLED = ["approved", "published", "rescheduled", "cancelled"];
+  const isSettled = !!post && SETTLED.includes(post.status);
+
   const T = {
     es: {
       editTitle: "Editar contenido", newTitle: "Nuevo contenido",
@@ -210,6 +219,8 @@ export default function ContentForm({
       titleTaken: "Este título ya está en uso", similarFound: "Ideas similares ya propuestas",
       similarHint: "Revisa que tu idea no repita una existente antes de enviar.",
       checking: "Buscando ideas similares...",
+      saveChanges: "Guardar cambios", saveFailed: "No se pudo guardar.",
+      settledNote: "Este contenido ya está aprobado o publicado. Puedes corregir el texto, el guion y los enlaces; la fecha y el estado los cambia un administrador.",
       coAuthors: "Colaboradores/as", coAuthorsHint: "Si trabajaron en equipo, agrégalos aquí — quedan acreditados y verán el contenido en su lista.",
       addCoAuthor: "Agregar persona...", coAuthorsNone: "Nadie más por ahora.",
     },
@@ -232,6 +243,8 @@ export default function ContentForm({
       titleTaken: "This title is already taken", similarFound: "Similar ideas already proposed",
       similarHint: "Make sure your idea doesn't repeat an existing one before submitting.",
       checking: "Checking for similar ideas...",
+      saveChanges: "Save changes", saveFailed: "Couldn't save.",
+      settledNote: "This post is already approved or published. You can still fix the copy, script and links; the date and status are changed by an admin.",
       coAuthors: "Collaborators", coAuthorsHint: "If you worked as a team, add them here — they get the credit and see the post in their list.",
       addCoAuthor: "Add a person...", coAuthorsNone: "Nobody else yet.",
     },
@@ -254,6 +267,8 @@ export default function ContentForm({
       titleTaken: "이미 사용 중인 제목이에요", similarFound: "비슷한 아이디어가 이미 있어요",
       similarHint: "제출 전에 기존 아이디어와 겹치지 않는지 확인해 주세요.",
       checking: "비슷한 아이디어 찾는 중...",
+      saveChanges: "변경사항 저장", saveFailed: "저장하지 못했어요.",
+      settledNote: "이미 승인되었거나 게시된 콘텐츠예요. 카피, 스크립트, 링크는 수정할 수 있고 날짜와 상태는 관리자가 변경해요.",
       coAuthors: "함께한 사람", coAuthorsHint: "팀으로 작업했다면 여기에 추가하세요. 크레딧에 남고, 그분들 목록에도 이 콘텐츠가 보여요.",
       addCoAuthor: "사람 추가...", coAuthorsNone: "아직 없어요.",
     },
@@ -354,17 +369,40 @@ export default function ContentForm({
       caption: caption || null,
       script: script || null,
       hashtags: hashtags || null,
-      status: submitForReview ? "submitted" : "draft",
       responsible_id: profileId,
-      ...(submitForReview ? { submitted_at: new Date().toISOString() } : {}),
+      // Saving an edit to a published post must not send it back to draft —
+      // that would silently un-publish it. Settled posts keep their status and
+      // their schedule; everything else follows the button that was pressed.
+      ...(isSettled
+        ? {
+            status: post!.status,
+            publication_date: post!.publication_date,
+            publication_cycle_id: post!.publication_cycle_id,
+          }
+        : {
+            status: (submitForReview ? "submitted" : "draft") as ContentStatus,
+            ...(submitForReview ? { submitted_at: new Date().toISOString() } : {}),
+          }),
     };
 
     let postId = post?.id;
     if (post) {
-      await supabase.from("content_posts").update(postData).eq("id", post.id);
+      const { error } = await supabase.from("content_posts").update(postData).eq("id", post.id);
+      if (error) {
+        // Previously discarded, so a write the database refused looked like a
+        // successful save and the edit vanished on the next page load.
+        setSaving(false);
+        setErrors({ form: error.message });
+        return;
+      }
     } else {
-      const { data } = await supabase.from("content_posts").insert(postData).select("id").single();
-      postId = data?.id;
+      const { data, error } = await supabase.from("content_posts").insert(postData).select("id").single();
+      if (error || !data) {
+        setSaving(false);
+        setErrors({ form: error?.message ?? L.saveFailed });
+        return;
+      }
+      postId = data.id;
     }
 
     // Credit the co-authors. The lead row is written by the content_posts
@@ -419,6 +457,15 @@ export default function ContentForm({
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.pageTitle}</h1>
+
+      {isSettled && (
+        <div
+          className="rounded-xl px-4 py-3 text-xs"
+          style={{ backgroundColor: "rgba(56,179,158,0.10)", color: "#1F7A6E" }}
+        >
+          {L.settledNote}
+        </div>
+      )}
 
       <div className="rounded-2xl p-6 shadow-koco space-y-5" style={{ backgroundColor: "#F8F0DE" }}>
         {/* Title — checks for duplicates when the field loses focus */}
@@ -523,7 +570,9 @@ export default function ContentForm({
         {/* Cycle + Date row */}
         <div className="grid grid-cols-2 gap-4">
           <Field label={L.cycle} error={errors.cycleId}>
-            <Select value={cycleId} onChange={setCycleId} hasError={!!errors.cycleId}>
+            {/* Disabled on a settled post: guard_volunteer_edits would refuse
+                the write, so offering the control would only produce an error. */}
+            <Select value={cycleId} onChange={setCycleId} hasError={!!errors.cycleId} disabled={isSettled}>
               <option value="">{L.select}</option>
               {cycles.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -534,7 +583,7 @@ export default function ContentForm({
             </Select>
           </Field>
           <Field label={L.pubDate} error={errors.pubDate}>
-            <Input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} hasError={!!errors.pubDate} />
+            <Input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} hasError={!!errors.pubDate} disabled={isSettled} />
           </Field>
         </div>
 
@@ -658,19 +707,30 @@ export default function ContentForm({
           onClick={() => save(false)}
           disabled={saving}
           className="flex-1 py-3 rounded-lg font-bold text-sm btn-hover"
-          style={{ backgroundColor: "transparent", border: "2px solid #38B39E", color: "#38B39E" }}
+          style={
+            isSettled
+              ? { backgroundColor: "#ECA040", color: "#FFFFFF" }
+              : { backgroundColor: "transparent", border: "2px solid #38B39E", color: "#38B39E" }
+          }
         >
-          {saving ? L.saving : L.saveDraft}
+          {saving ? L.saving : isSettled ? L.saveChanges : L.saveDraft}
         </button>
-        <button
-          onClick={() => save(true)}
-          disabled={saving}
-          className="flex-1 py-3 rounded-lg font-bold text-sm text-white btn-hover"
-          style={{ backgroundColor: "#ECA040" }}
-        >
-          {saving ? L.saving : L.submit}
-        </button>
+        {/* Nothing to submit for review on a post that is already decided. */}
+        {!isSettled && (
+          <button
+            onClick={() => save(true)}
+            disabled={saving}
+            className="flex-1 py-3 rounded-lg font-bold text-sm text-white btn-hover"
+            style={{ backgroundColor: "#ECA040" }}
+          >
+            {saving ? L.saving : L.submit}
+          </button>
+        )}
       </div>
+
+      {errors.form && (
+        <p className="text-sm text-center" style={{ color: "#E2693E" }}>{errors.form}</p>
+      )}
     </div>
   );
 }

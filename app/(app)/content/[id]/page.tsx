@@ -55,11 +55,13 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
 
   const isOwner = post.responsible_id === profile.id;
   const isContributor = contributors.some((c) => c.profile_id === profile.id);
-  // Must mirror posts_update_own exactly (migration 19). An admin asking for
-  // changes sends a post to in_progress; if that were missing here the
-  // volunteer would be told to fix it and given no way to.
-  const EDITABLE_STATUSES = ["draft", "not_started", "in_progress", "submitted", "rejected"];
-  const canEdit = profile.is_admin || (isOwner && EDITABLE_STATUSES.includes(post.status));
+  // The owner may edit their own post in any state (migration 24). Most of the
+  // migrated posts arrived marked "Publicado" while still being worked on, and
+  // an author could not touch their own work at all. What may CHANGE is
+  // narrowed by guard_volunteer_edits, not by hiding the form: on a settled
+  // post the copy, script and links stay editable while the status and
+  // schedule do not.
+  const canEdit = profile.is_admin || isOwner;
 
   // A collaborator can read the post they worked on, but not edit it — editing
   // stays with the lead and admins, matching posts_update_own.
