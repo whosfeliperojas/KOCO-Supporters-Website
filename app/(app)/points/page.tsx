@@ -17,6 +17,11 @@ export default async function PointsPage() {
   const profile = profileData as Pick<Profile, "id" | "is_admin" | "locale" | "full_name"> | null;
   if (!profile) redirect("/auth/login");
 
+  // Every point award is already listed below - visiting here IS seeing them,
+  // so it clears the matching bell notifications the same way opening a
+  // content post or the events pages clears theirs.
+  await supabase.rpc("mark_notifications_by_kind_read", { p_kinds: ["points_awarded"] });
+
   const { data: entries } = await supabase
     .from("point_log_entries")
     .select("id, date, points_earned, notes, criteria:point_criteria(category, description_es, description_en, type)")

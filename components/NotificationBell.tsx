@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import type { AppNotification } from "@/lib/notifications";
-import { describeNotification, notificationHref } from "@/lib/notifications";
+import { describeNotification, notificationHref, pointsCriteriaLabel } from "@/lib/notifications";
 
 const T = {
   es: {
@@ -44,13 +44,27 @@ function relativeTime(iso: string, locale: "es" | "en" | "ko"): string {
   return `${days}d`;
 }
 
+const SELECT_COLUMNS =
+  "id, kind, entity_type, entity_id, actor_id, actor_name, title, body, from_status, to_status, " +
+  "is_resubmission, points, criteria_es, criteria_en, points_source, read_at, created_at";
+
 /**
  * The bell, top-right in the app shell.
  *
  * Server-rendered pages already compute the unread count once per navigation
  * (see app/(app)/layout.tsx); this component starts from that number so the
- * badge never flashes 0 on first paint, then fetches the actual list lazily -
- * only when the panel is opened, since most page loads never open it.
+ * badge never flashes 0 on first paint.
+ *
+ * It used to STAY on that server-passed number until the layout happened to
+ * re-render with a fresh one, which relies on Next's client router cache
+ * invalidating on cue - it often didn't. A volunteer could mark a proposal's
+ * notification read by opening it (the page does that server-side on load),
+ * resubmit, navigate back, and the badge would still show the old count until
+ * a hard reload. Every content/event page that marks something read already
+ * changes the URL to get there, so the badge now re-fetches the real count
+ * directly on every route change, via usePathname() - a live query, not a
+ * value trusted to have propagated through the render tree correctly. Same
+ * fix covers admins: nothing about the old bug was volunteer-specific.
  */
 export default function NotificationBell({
   isAdmin,
@@ -62,6 +76,7 @@ export default function NotificationBell({
   const { locale } = useLocale();
   const L = T[locale];
   const router = useRouter();
+  const pathname = usePathname();
 
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(initialUnread);
@@ -69,17 +84,23 @@ export default function NotificationBell({
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Local state has to diverge from the prop after an optimistic decrement
-  // (marking one item read, or all of them, updates the badge before the
-  // server round-trip lands) - so it cannot simply be derived from the prop.
-  // But it must still pick up a fresh server count after router.refresh().
-  // Adjusting during render, rather than in an effect, avoids the extra
-  // render pass an effect-based sync would add on every mount.
-  const [prevInitial, setPrevInitial] = useState(initialUnread);
-  if (initialUnread !== prevInitial) {
-    setPrevInitial(initialUnread);
-    setUnread(initialUnread);
-  }
+  // The one authoritative refresh: re-count directly from the database
+  // whenever the route changes, including on mount. Cheap (one indexed
+  // count-only query) and immune to whatever the router cache is doing.
+  useEffect(() => {
+    let cancelled = false;
+    createClient()
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .is("read_at", null)
+      .then(({ count }) => {
+        if (!cancelled) setUnread(count ?? initialUnread);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch on navigation only, not on every initialUnread prop tick
+  }, [pathname]);
 
   // Close on an outside click or Escape - standard dropdown behavior, and the
   // panel overlays page content so it must not trap the viewer.
@@ -103,18 +124,21 @@ export default function NotificationBell({
     setStatus("loading");
     const { data, error } = await createClient()
       .from("notifications")
-      .select("id, kind, entity_type, entity_id, actor_id, actor_name, title, body, from_status, to_status, is_resubmission, read_at, created_at")
+      .select(SELECT_COLUMNS)
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) { setStatus("error"); return; }
-    setItems((data ?? []) as AppNotification[]);
+    setItems((data ?? []) as unknown as AppNotification[]);
     setStatus("ready");
   }
 
   function toggle() {
     const next = !open;
     setOpen(next);
-    if (next && status === "idle") load();
+    // Always refetch on open, not just the first time - otherwise reopening
+    // the panel later in the session could show items as unread that were
+    // already cleared by visiting whatever they pointed to.
+    if (next) load();
   }
 
   async function openItem(n: AppNotification) {
@@ -133,6 +157,16 @@ export default function NotificationBell({
     setItems((prev) => prev?.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() })) ?? prev);
     await createClient().rpc("mark_all_notifications_read");
     router.refresh();
+  }
+
+  /** points_awarded shows the criteria; every other kind shows the linked title. */
+  function secondaryLine(n: AppNotification): string | null {
+    return n.kind === "points_awarded" ? pointsCriteriaLabel(n, locale) : n.title;
+  }
+
+  /** points_awarded's third line is the linked post/event name, if there is one. */
+  function tertiaryLine(n: AppNotification): string | null {
+    return n.kind === "points_awarded" ? n.title : n.body;
   }
 
   return (
@@ -185,35 +219,41 @@ export default function NotificationBell({
               <p className="text-sm text-center py-8" style={{ color: "#888" }}>{L.empty}</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "#E8DCCF" }}>
-                {(items ?? []).map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => openItem(n)}
-                    className="w-full text-left px-4 py-3 flex gap-2.5 transition-colors btn-hover"
-                    style={{ backgroundColor: n.read_at ? "transparent" : "rgba(56,179,158,0.07)" }}
-                  >
-                    <span
-                      className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: n.read_at ? "transparent" : "#38B39E" }}
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-bold" style={{ color: "#1F7A6E" }}>
-                        {describeNotification(n, locale)}
-                      </span>
-                      <span className="block text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>
-                        {n.title}
-                      </span>
-                      {n.body && (
-                        <span className="block text-xs truncate" style={{ color: "#6B6258" }}>
-                          {n.body}
+                {(items ?? []).map((n) => {
+                  const secondary = secondaryLine(n);
+                  const tertiary = tertiaryLine(n);
+                  return (
+                    <button
+                      key={n.id}
+                      onClick={() => openItem(n)}
+                      className="w-full text-left px-4 py-3 flex gap-2.5 transition-colors btn-hover"
+                      style={{ backgroundColor: n.read_at ? "transparent" : "rgba(56,179,158,0.07)" }}
+                    >
+                      <span
+                        className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: n.read_at ? "transparent" : "#38B39E" }}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-bold" style={{ color: "#1F7A6E" }}>
+                          {describeNotification(n, locale)}
                         </span>
-                      )}
-                      <span className="block text-xs mt-0.5" style={{ color: "#9A8F84" }}>
-                        {relativeTime(n.created_at, locale)}
+                        {secondary && (
+                          <span className="block text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>
+                            {secondary}
+                          </span>
+                        )}
+                        {tertiary && (
+                          <span className="block text-xs truncate" style={{ color: "#6B6258" }}>
+                            {tertiary}
+                          </span>
+                        )}
+                        <span className="block text-xs mt-0.5" style={{ color: "#9A8F84" }}>
+                          {relativeTime(n.created_at, locale)}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
