@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import { DATE_LOCALE, type Locale } from "@/lib/i18n";
+import EventEditForm from "@/components/EventEditForm";
+import EventSignupsList from "@/components/EventSignupsList";
 
 type Event = {
   id: string;
@@ -94,6 +96,7 @@ export default function EventsClient({
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Volunteer event proposals
   const [proposals, setProposals] = useState<Proposal[]>(initialProposals);
@@ -132,6 +135,7 @@ export default function EventsClient({
       propSend: "Enviar propuesta", propSending: "Enviando...", propCancel: "Cancelar",
       propSaved: "¡Propuesta enviada!", propRequired: "Nombre y fecha son obligatorios.",
       propPending: "Pendiente", propConfirmed: "Confirmado", propRejected: "Rechazado",
+      editBtn: "Editar mi evento", editHint: "Puedes editarlo mientras las inscripciones están abiertas.",
     },
     en: {
       title: "Events", upcoming: "Upcoming events", past: "Past events", cancelled: "Cancelled", rejected: "Rejected", pendingState: "Not confirmed",
@@ -150,6 +154,7 @@ export default function EventsClient({
       propSend: "Send proposal", propSending: "Sending...", propCancel: "Cancel",
       propSaved: "Proposal sent!", propRequired: "Name and date are required.",
       propPending: "Pending", propConfirmed: "Confirmed", propRejected: "Rejected",
+      editBtn: "Edit my event", editHint: "You can edit it while registration is open.",
       confirmAttend: "Confirm your sign-up? This choice cannot be changed.",
       confirmDecline: "Confirm you will NOT attend? This choice cannot be changed.",
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -171,6 +176,7 @@ export default function EventsClient({
       propSend: "제안 보내기", propSending: "보내는 중...", propCancel: "취소",
       propSaved: "제안을 보냈어요!", propRequired: "이름과 날짜는 필수예요.",
       propPending: "대기 중", propConfirmed: "확정", propRejected: "반려",
+      editBtn: "내 행사 수정", editHint: "신청이 열려 있는 동안 수정할 수 있어요.",
       confirmAttend: "신청할까요? 한 번 정하면 바꿀 수 없어요.",
       confirmDecline: "불참으로 할까요? 한 번 정하면 바꿀 수 없어요.",
       weekDays: ["일", "월", "화", "수", "목", "금", "토"],
@@ -248,6 +254,11 @@ export default function EventsClient({
     const state = event.approval_status;
     const isCancelled = state === "cancelled" || state === "rejected";
     const canSignUp = showSignup && state === "confirmed";
+    // The proposer can fix their own event's details once it is live, but only
+    // while registration is open — once closed, only an admin still can
+    // (migration 30). Admins manage events from their own page, not here.
+    const canEditMine =
+      !isAdmin && event.proposed_by_id === profileId && state === "confirmed" && isOpen;
 
     return (
       <div className="rounded-2xl p-5 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
@@ -329,6 +340,33 @@ export default function EventsClient({
             </div>
           )}
         </div>
+
+        {canEditMine && editingId !== event.id && (
+          <button
+            onClick={() => setEditingId(event.id)}
+            title={L.editHint}
+            className="text-xs font-bold btn-hover mt-2 px-1 py-0.5 -ml-1 rounded"
+            style={{ color: "#1F7A6E" }}
+          >
+            ✎ {L.editBtn}
+          </button>
+        )}
+        {canEditMine && editingId === event.id && (
+          <div className="mt-3">
+            <EventEditForm
+              event={event}
+              onCancel={() => setEditingId(null)}
+              onSaved={() => setEditingId(null)}
+            />
+          </div>
+        )}
+
+        {/* Who's coming — any confirmed event, so a volunteer can see who else
+            will be there before deciding to sign up. Admins manage the full
+            list with attendance controls from /admin/events instead. */}
+        {!isAdmin && state === "confirmed" && (
+          <EventSignupsList eventId={event.id} count={count} />
+        )}
       </div>
     );
   }

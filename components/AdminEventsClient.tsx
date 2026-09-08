@@ -7,6 +7,7 @@ import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import { DATE_LOCALE } from "@/lib/i18n";
 import EventAttendeesPanel, { type EventSignup } from "@/components/EventAttendeesPanel";
+import EventEditForm from "@/components/EventEditForm";
 
 type Event = {
   id: string;
@@ -62,6 +63,7 @@ export default function AdminEventsClient({
       toggleClose: "Cerrar inscripciones", toggleOpen: "Abrir inscripciones",
       proposalsTitle: "Propuestas de voluntarios/as", proposedBy: "Propuesto por",
       approve: "Aprobar", rejectBtn: "Rechazar",
+      editBtn: "Editar", editHint: "Solo mientras las inscripciones están abiertas.",
     },
     en: {
       title: "Events (admin)", createTitle: "Create event",
@@ -78,6 +80,7 @@ export default function AdminEventsClient({
       toggleClose: "Close registration", toggleOpen: "Open registration",
       proposalsTitle: "Volunteer proposals", proposedBy: "Proposed by",
       approve: "Approve", rejectBtn: "Reject",
+      editBtn: "Edit", editHint: "Only while registration is open.",
     },
     ko: {
       title: "행사 관리", createTitle: "행사 만들기",
@@ -94,6 +97,7 @@ export default function AdminEventsClient({
       toggleClose: "신청 마감하기", toggleOpen: "신청 열기",
       proposalsTitle: "서포터즈 제안", proposedBy: "제안:",
       approve: "승인", rejectBtn: "반려",
+      editBtn: "수정", editHint: "신청이 열려 있는 동안만 가능해요.",
     },
   } as const;
   const L = T[locale];
@@ -150,6 +154,7 @@ export default function AdminEventsClient({
   }
 
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   async function decideProposal(event: Event, decision: "confirmed" | "rejected") {
     setTogglingId(event.id);
@@ -373,8 +378,29 @@ export default function AdminEventsClient({
                   <p className="text-xs mt-0.5" style={{ color: "#888" }}>
                     {count}{ev.max_invited_koco != null ? ` / ${ev.max_invited_koco}` : ""} {L.spots}
                   </p>
+                  {/* Which events came from a volunteer proposal, and who — the
+                      data was already fetched for every event, just never shown
+                      once approved. */}
+                  {ev.proposer && (
+                    <p className="text-xs mt-0.5" style={{ color: "#8C6B55" }}>
+                      {L.proposedBy} {ev.proposer.display_name ?? ev.proposer.full_name}
+                    </p>
+                  )}
                 </div>
                 <div className="shrink-0 flex flex-col items-end gap-2">
+                  {/* Editing is scoped to open registration on purpose: once
+                      closed, the details are settled and only cancelling or
+                      reopening registration remain. */}
+                  {isOpen && editingId !== ev.id && (
+                    <button
+                      onClick={() => setEditingId(ev.id)}
+                      title={L.editHint}
+                      className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
+                      style={{ backgroundColor: "rgba(56,179,158,0.12)", color: "#1F7A6E" }}
+                    >
+                      {L.editBtn}
+                    </button>
+                  )}
                   {!isDead && (
                     <button
                       onClick={() => toggleRegistration(ev)}
@@ -432,6 +458,16 @@ export default function AdminEventsClient({
                   )}
                 </div>
                 </div>
+
+                {editingId === ev.id && (
+                  <div className="mt-3">
+                    <EventEditForm
+                      event={ev}
+                      onCancel={() => setEditingId(null)}
+                      onSaved={() => setEditingId(null)}
+                    />
+                  </div>
+                )}
 
                 {/* Who signed up, and attendance. Full width under the card so
                     the list is not squeezed next to the action buttons. */}
