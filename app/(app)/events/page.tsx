@@ -17,6 +17,13 @@ export default async function EventsPage() {
   const profile = profileData as Pick<Profile, "id" | "is_admin" | "locale"> | null;
   if (!profile) redirect("/auth/login");
 
+  // Events have no per-event detail page the way content does, but "Mis
+  // propuestas" below already shows every one of this volunteer's proposals
+  // and its outcome on this one screen — visiting here IS seeing the decision,
+  // so it clears the matching bell notifications the same way opening a post
+  // clears its content ones.
+  await supabase.rpc("mark_notifications_by_kind_read", { p_kinds: ["event_decision"] });
+
   const [eventsRes, attendeesRes, proposalsRes] = await Promise.all([
     supabase
       .from("events")

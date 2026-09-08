@@ -491,6 +491,11 @@ export default function ContentForm({
 
     setSaving(false);
     companionReact("celebrate");
+    // Marking a notification read happened on THIS page's own load, before any
+    // of the above — but Next's client-side router cache can still hand the
+    // destination a stale copy of the shared layout (and the bell's count in
+    // it) unless the cache is explicitly invalidated first.
+    router.refresh();
     router.push("/content");
   }
 

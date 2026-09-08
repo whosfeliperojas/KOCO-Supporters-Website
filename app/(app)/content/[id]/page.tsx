@@ -75,6 +75,16 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
     await supabase.rpc("mark_post_seen", { p_post_id: post.id });
   }
 
+  // The bell tracks the same "seen" event independently of the dot above —
+  // clearing one used to leave the other stuck unread, so a volunteer could
+  // read the feedback, fix it, resubmit, and still see a stale badge. Safe to
+  // call for anyone who reached this page (owner, contributor or admin): the
+  // RPC only ever touches the caller's own notification rows.
+  await supabase.rpc("mark_notifications_for_entity_read", {
+    p_entity_type: "content",
+    p_entity_id: post.id,
+  });
+
   const T = PANEL_T[profile.locale];
   const feedback = [post.admin_notes, post.review_feedback].filter(Boolean).join("\n\n");
 

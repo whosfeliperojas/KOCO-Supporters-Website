@@ -18,6 +18,11 @@ export default async function AdminEventsPage() {
   const profile = profileData as Pick<Profile, "id" | "is_admin" | "locale"> | null;
   if (!profile?.is_admin) redirect("/dashboard");
 
+  // Every pending proposal is already listed on this one screen (below), so
+  // visiting it IS reviewing them — clears the matching bell notifications the
+  // same way opening a content post clears its own.
+  await supabase.rpc("mark_notifications_by_kind_read", { p_kinds: ["event_proposal_new"] });
+
   const [eventsRes, attendeesRes, rosterRes, groupsRes] = await Promise.all([
     supabase
       .from("events")

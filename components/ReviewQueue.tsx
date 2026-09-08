@@ -97,10 +97,18 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [failed, setFailed] = useState(false);
+  // Removed the instant a decision is made, before the network round-trip even
+  // resolves. Without this, an admin's click sat there through a full
+  // request + router.refresh() before the item finally vanished — correct,
+  // but felt like the click hadn't registered. router.refresh() still runs
+  // afterward, so the next real fetch is the source of truth; this is purely
+  // about not making someone stare at a button waiting for it.
+  const [decidedIds, setDecidedIds] = useState<Set<string>>(new Set());
 
   async function decide(post: PendingPost, next: "approved" | "in_progress" | "rejected") {
     setBusyId(post.id);
     setFailed(false);
+    setDecidedIds((prev) => new Set(prev).add(post.id));
 
     const note = (notes[post.id] ?? "").trim();
     const patch: Record<string, unknown> = {
@@ -117,12 +125,22 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
       .eq("id", post.id);
 
     setBusyId(null);
-    if (error) { setFailed(true); return; }
+    if (error) {
+      setFailed(true);
+      // The write failed — put it back rather than leaving it looking decided.
+      setDecidedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+      return;
+    }
     if (next === "approved") companionReact("celebrate");
     router.refresh();
   }
 
-  if (posts.length === 0) return null;
+  const visiblePosts = posts.filter((p) => !decidedIds.has(p.id));
+  if (visiblePosts.length === 0) return null;
 
   return (
     <section
@@ -135,11 +153,11 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
           className="label-style text-xs px-2 py-0.5 rounded-full"
           style={{ backgroundColor: "#E2693E", color: "#FFFFFF" }}
         >
-          {posts.length}
+          {visiblePosts.length}
         </span>
       </div>
 
-      {posts.map((p) => (
+      {visiblePosts.map((p) => (
         <div key={p.id} className="rounded-xl p-4 space-y-3" style={{ backgroundColor: "#FFFFFF" }}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0">
