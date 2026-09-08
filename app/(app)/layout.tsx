@@ -84,8 +84,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ).length;
   }
 
+  // Unread count for the bell. RLS scopes notifications to the caller's own
+  // rows, so this is safe to run for both roles unconditionally. Defaults to 0
+  // rather than throwing if migration 29 has not been applied yet on this
+  // environment — a missing table should never take the whole layout down.
+  const { count: unreadCount } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .is("read_at", null);
+
   return (
-    <AppShell profile={profile} initialLocale={profile.locale} contentBadge={contentBadge}>
+    <AppShell
+      profile={profile}
+      initialLocale={profile.locale}
+      contentBadge={contentBadge}
+      unreadNotifications={unreadCount ?? 0}
+    >
       {children}
     </AppShell>
   );

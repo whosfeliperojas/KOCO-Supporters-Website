@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { triggerPekoBlink } from "@/components/Peko";
 import Companion, { companionReact } from "@/components/Companion";
+import NotificationBell from "@/components/NotificationBell";
 import type { Profile } from "@/lib/types";
 import type { Locale } from "@/lib/i18n";
 import { LOCALE_META } from "@/lib/i18n";
@@ -230,18 +231,27 @@ export default function AppShell({
   initialLocale,
   children,
   contentBadge = 0,
+  unreadNotifications = 0,
 }: {
   profile: Profile;
   initialLocale: Locale;
   children: React.ReactNode;
   /** Proposals awaiting review (admin) or unseen decisions (volunteer). */
   contentBadge?: number;
+  /** Unread count for the notification bell. */
+  unreadNotifications?: number;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <LocaleProvider initial={initialLocale}>
-      <AppShellInner profile={profile} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} contentBadge={contentBadge}>
+      <AppShellInner
+        profile={profile}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+        contentBadge={contentBadge}
+        unreadNotifications={unreadNotifications}
+      >
         {children}
       </AppShellInner>
     </LocaleProvider>
@@ -253,6 +263,7 @@ function AppShellInner({
   mobileOpen,
   setMobileOpen,
   contentBadge = 0,
+  unreadNotifications = 0,
   children,
 }: {
   profile: Profile;
@@ -260,6 +271,8 @@ function AppShellInner({
   setMobileOpen: (v: boolean) => void;
   /** Proposals awaiting review (admin) or unseen decisions (volunteer). */
   contentBadge?: number;
+  /** Unread count for the notification bell. */
+  unreadNotifications?: number;
   children: React.ReactNode;
 }) {
   const { locale } = useLocale();
@@ -286,13 +299,20 @@ function AppShellInner({
 
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Desktop top bar - the sidebar carries branding and nav, so this row
+            exists only to hold the bell top-right, matching the mobile header's
+            colors so the two feel like one design rather than two. */}
+        <header className="hidden md:flex items-center justify-end px-6 py-3 border-b" style={{ backgroundColor: "#F2E8D5", borderColor: "#E8DCCF" }}>
+          <NotificationBell isAdmin={profile.is_admin} initialUnread={unreadNotifications} />
+        </header>
+
         {/* Mobile top bar */}
         <header className="flex md:hidden items-center justify-between px-4 py-3 border-b" style={{ backgroundColor: "#F2E8D5", borderColor: "#E8DCCF" }}>
           <button onClick={() => setMobileOpen(true)} className="text-xl" style={{ color: "#1C1C1C" }}>
             ☰
           </button>
           <KocoLogo height={34} />
-          <div className="w-6" />
+          <NotificationBell isAdmin={profile.is_admin} initialUnread={unreadNotifications} />
         </header>
 
         {/* Page content */}

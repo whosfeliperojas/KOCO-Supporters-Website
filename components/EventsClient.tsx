@@ -102,6 +102,7 @@ export default function EventsClient({
   const [pDate, setPDate] = useState("");
   const [pPlace, setPPlace] = useState("");
   const [pDesc, setPDesc] = useState("");
+  const [pMax, setPMax] = useState<number | "">("");
   const [pStatus, setPStatus] = useState<"idle" | "sending" | "error">("idle");
 
   const today = new Date().toISOString().split("T")[0];
@@ -126,6 +127,7 @@ export default function EventsClient({
       weekDays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
       myProps: "Mis propuestas", propose: "+ Proponer evento",
       propName: "Nombre del evento", propDate: "Fecha", propDesc: "Descripción",
+      propMax: "Cupos (máx. asistentes)", propMaxHint: "Sin límite si queda vacío",
       propHint: "El equipo KOICA la revisará antes de publicarla.",
       propSend: "Enviar propuesta", propSending: "Enviando...", propCancel: "Cancelar",
       propSaved: "¡Propuesta enviada!", propRequired: "Nombre y fecha son obligatorios.",
@@ -143,6 +145,7 @@ export default function EventsClient({
       spots: "spots", spotsLeft: "spots left",
       myProps: "My proposals", propose: "+ Propose event",
       propName: "Event name", propDate: "Date", propDesc: "Description",
+      propMax: "Spots (max attendees)", propMaxHint: "No limit if left empty",
       propHint: "The KOICA team will review it before it goes live.",
       propSend: "Send proposal", propSending: "Sending...", propCancel: "Cancel",
       propSaved: "Proposal sent!", propRequired: "Name and date are required.",
@@ -163,6 +166,7 @@ export default function EventsClient({
       spots: "정원", spotsLeft: "자리 남음",
       myProps: "내 제안", propose: "+ 행사 제안하기",
       propName: "행사 이름", propDate: "날짜", propDesc: "설명",
+      propMax: "정원 (최대 인원)", propMaxHint: "비워 두면 제한 없음",
       propHint: "KOICA 팀이 검토한 뒤에 올라가요.",
       propSend: "제안 보내기", propSending: "보내는 중...", propCancel: "취소",
       propSaved: "제안을 보냈어요!", propRequired: "이름과 날짜는 필수예요.",
@@ -186,6 +190,10 @@ export default function EventsClient({
         event_date_start: pDate,
         place: pPlace.trim() || null,
         description: pDesc.trim() || null,
+        // Same field the admin create form uses, so a proposal arrives with
+        // everything an admin needs to approve it as-is — no back-and-forth
+        // just to ask "how many spots?".
+        max_invited_koco: pMax === "" ? null : Number(pMax),
         approval_status: "pending",
         registration_status: "closed",
         proposed_by_id: profileId,
@@ -199,7 +207,7 @@ export default function EventsClient({
       return;
     }
     setProposals((prev) => [data as Proposal, ...prev]);
-    setPName(""); setPDate(""); setPPlace(""); setPDesc("");
+    setPName(""); setPDate(""); setPPlace(""); setPDesc(""); setPMax("");
     setPStatus("idle");
     setShowPropose(false);
     companionReact("celebrate", L.propSaved);
@@ -564,6 +572,18 @@ export default function EventsClient({
                       className="w-full px-3 py-2 text-sm rounded-lg outline-none resize-y"
                       style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
                     />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propMax}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={pMax}
+                      onChange={(e) => setPMax(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full sm:w-40 px-3 py-2 text-sm rounded-lg outline-none"
+                      style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                    />
+                    <p className="text-xs" style={{ color: "#888" }}>{L.propMaxHint}</p>
                   </div>
                   <p className="text-xs" style={{ color: "#888" }}>{L.propHint}</p>
                   {pStatus === "error" && (
