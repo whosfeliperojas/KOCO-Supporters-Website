@@ -4,16 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
-import type { AppNotification, NotificationKind } from "@/lib/notifications";
-import { notificationHref } from "@/lib/notifications";
-
-const KIND_LABEL: Record<NotificationKind, { es: string; en: string; ko: string }> = {
-  content_proposal_new: { es: "Nueva propuesta de contenido", en: "New content proposal", ko: "새 콘텐츠 제안" },
-  content_decision:     { es: "Novedad en tu contenido",      en: "Update on your content", ko: "콘텐츠 소식" },
-  content_feedback:     { es: "Comentario en tu contenido",   en: "Comment on your content", ko: "콘텐츠에 새 댓글" },
-  event_proposal_new:   { es: "Nueva propuesta de evento",    en: "New event proposal",     ko: "새 행사 제안" },
-  event_decision:       { es: "Novedad en tu evento",         en: "Update on your event",   ko: "행사 소식" },
-};
+import type { AppNotification } from "@/lib/notifications";
+import { describeNotification, notificationHref } from "@/lib/notifications";
 
 const T = {
   es: {
@@ -111,7 +103,7 @@ export default function NotificationBell({
     setStatus("loading");
     const { data, error } = await createClient()
       .from("notifications")
-      .select("id, kind, entity_type, entity_id, actor_id, title, body, read_at, created_at")
+      .select("id, kind, entity_type, entity_id, actor_id, actor_name, title, body, from_status, to_status, is_resubmission, read_at, created_at")
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) { setStatus("error"); return; }
@@ -206,7 +198,7 @@ export default function NotificationBell({
                     />
                     <span className="min-w-0">
                       <span className="block text-xs font-bold" style={{ color: "#1F7A6E" }}>
-                        {KIND_LABEL[n.kind][locale]}
+                        {describeNotification(n, locale)}
                       </span>
                       <span className="block text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>
                         {n.title}

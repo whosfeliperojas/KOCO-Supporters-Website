@@ -31,6 +31,14 @@ export const CONTENT_STATUS_LABEL = {
   rescheduled:  { es: "Reagendado",   en: "Rescheduled", ko: "일정 변경" },
 } as const;
 
+/** The one place an event's approval_status is turned into words. */
+export const EVENT_APPROVAL_LABEL = {
+  pending:   { es: "pendiente", en: "pending", ko: "대기 중" },
+  confirmed: { es: "aprobado",  en: "approved", ko: "승인됨" },
+  rejected:  { es: "rechazado", en: "rejected", ko: "반려됨" },
+  cancelled: { es: "cancelado", en: "cancelled", ko: "취소됨" },
+} as const;
+
 /** BCP-47 tags for date/number formatting per app locale */
 export const DATE_LOCALE: Record<Locale, string> = {
   es: "es-CO",

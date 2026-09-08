@@ -21,8 +21,11 @@ export default async function EventsPage() {
   // propuestas" below already shows every one of this volunteer's proposals
   // and its outcome on this one screen — visiting here IS seeing the decision,
   // so it clears the matching bell notifications the same way opening a post
-  // clears its content ones.
-  await supabase.rpc("mark_notifications_by_kind_read", { p_kinds: ["event_decision"] });
+  // clears its content ones. event_signup is included too: a volunteer's own
+  // confirmed event shows its attendee list right here (EventSignupsList).
+  await supabase.rpc("mark_notifications_by_kind_read", {
+    p_kinds: ["event_decision", "event_signup"],
+  });
 
   const [eventsRes, attendeesRes, proposalsRes] = await Promise.all([
     supabase

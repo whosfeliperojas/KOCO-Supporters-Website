@@ -20,8 +20,11 @@ export default async function AdminEventsPage() {
 
   // Every pending proposal is already listed on this one screen (below), so
   // visiting it IS reviewing them — clears the matching bell notifications the
-  // same way opening a content post clears its own.
-  await supabase.rpc("mark_notifications_by_kind_read", { p_kinds: ["event_proposal_new"] });
+  // same way opening a content post clears its own. event_signup is included
+  // too: every event's attendee list is right here in EventAttendeesPanel.
+  await supabase.rpc("mark_notifications_by_kind_read", {
+    p_kinds: ["event_proposal_new", "event_signup"],
+  });
 
   const [eventsRes, attendeesRes, rosterRes, groupsRes] = await Promise.all([
     supabase
