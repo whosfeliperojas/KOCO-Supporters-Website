@@ -10,6 +10,25 @@ import GlassSelect, { type GlassOption } from "@/components/glass/GlassSelect";
 import GlassDatePicker from "@/components/glass/GlassDatePicker";
 import Button from "@/components/ui/Button";
 
+/**
+ * Content limits, in one place.
+ *
+ * Each number used to be written out eight times - the field label, the error
+ * message, the validation and the live counter, across three languages - so
+ * changing a limit meant finding every copy and hoping none was missed. The
+ * strings below interpolate these instead.
+ *
+ * Both live only here: `script` and `hashtags` are plain `text` columns with
+ * no CHECK constraint in any migration, so the database accepts whatever the
+ * form lets through.
+ *
+ * The script length is a RECOMMENDATION, not a rule. A short script shows a
+ * warning but never blocks submitting - an empty script still does, because
+ * "required" is a separate check. The hashtag cap is a hard limit.
+ */
+const SCRIPT_RECOMMENDED_CHARS = 150;
+const HASHTAGS_MAX = 7;
+
 // Stored values stay canonical (existing DB rows use them); labels localize per language
 const FORMATS: { value: string; es: string; en: string; ko: string }[] = [
   { value: "Reel",          es: "Reel",          en: "Reel",        ko: "릴스" },
@@ -243,7 +262,7 @@ export default function ContentForm({
       editTitle: "Editar contenido", newTitle: "Nuevo contenido",
       title: "Título", format: "Formato", channel: "Canal", type: "Tipo de contenido",
       cycle: "Ciclo de publicación", pubDate: "Fecha de publicación", designUrl: "Enlace del diseño (URL)",
-      caption: "Caption / Copy", script: "Guión o descripción (mín. 80 caracteres)", hashtags: "Hashtags",
+      caption: "Caption / Copy", script: `Guión o descripción (se recomiendan ${SCRIPT_RECOMMENDED_CHARS} caracteres)`, hashtags: "Hashtags",
       reelSection: "Especificaciones de Reel (obligatorio)", duration: "Duración en segundos (7–58)",
       aspectRatio: "Confirmé que el video es 9:16 vertical", audioClean: "El audio es limpio, sin distorsión",
       framing: "El sujeto principal está centrado y bien encuadrado",
@@ -252,9 +271,9 @@ export default function ContentForm({
       noMusic: "La música NO está embebida en el video", cover: "La portada/thumbnail fue diseñada intencionalmente",
       headline: "Titular de portada (3–6 palabras)", typography: "La portada usa tipografía oficial KOCO",
       saveDraft: "Guardar borrador", submit: "Enviar para revisión", saving: "Guardando...",
-      select: "Seleccionar...", required: "Campo requerido", minChars: "Mínimo 80 caracteres",
+      select: "Seleccionar...", required: "Campo requerido", scriptShort: `Recomendamos al menos ${SCRIPT_RECOMMENDED_CHARS} caracteres para que el equipo entienda bien tu idea. Puedes enviarla igual.`,
       urlFormat: "Debe ser una URL válida (https://...)", durationRange: "Debe estar entre 7 y 58 segundos",
-      headlineWords: "Máximo 6 palabras", hashtagsLimit: "Máximo 3 hashtags",
+      headlineWords: "Máximo 6 palabras", hashtagsLimit: `Máximo ${HASHTAGS_MAX} hashtags`,
       titleTaken: "Este título ya está en uso", similarFound: "Ideas similares ya propuestas",
       similarHint: "Revisa que tu idea no repita una existente antes de enviar.",
       checking: "Buscando ideas similares...",
@@ -269,7 +288,7 @@ export default function ContentForm({
       editTitle: "Edit content", newTitle: "New post",
       title: "Title", format: "Format", channel: "Channel", type: "Content type",
       cycle: "Publication cycle", pubDate: "Publication date", designUrl: "Design link (URL)",
-      caption: "Caption / Copy", script: "Script or description (min. 80 characters)", hashtags: "Hashtags",
+      caption: "Caption / Copy", script: `Script or description (${SCRIPT_RECOMMENDED_CHARS}+ characters recommended)`, hashtags: "Hashtags",
       reelSection: "Reel specifications (required)", duration: "Duration in seconds (7–58)",
       aspectRatio: "I confirm the video is 9:16 vertical", audioClean: "Audio is clean, no distortion",
       framing: "Main subject is centered and well framed",
@@ -278,9 +297,9 @@ export default function ContentForm({
       noMusic: "Music is NOT embedded in the video", cover: "Cover/thumbnail was intentionally designed",
       headline: "Cover headline (3–6 words)", typography: "Cover uses official KOCO typography",
       saveDraft: "Save draft", submit: "Submit for review", saving: "Saving...",
-      select: "Select...", required: "Required field", minChars: "Minimum 80 characters",
+      select: "Select...", required: "Required field", scriptShort: `We recommend at least ${SCRIPT_RECOMMENDED_CHARS} characters so the team understands your idea. You can still send it.`,
       urlFormat: "Must be a valid URL (https://...)", durationRange: "Must be between 7 and 58 seconds",
-      headlineWords: "Maximum 6 words", hashtagsLimit: "Maximum 3 hashtags",
+      headlineWords: "Maximum 6 words", hashtagsLimit: `Maximum ${HASHTAGS_MAX} hashtags`,
       titleTaken: "This title is already taken", similarFound: "Similar ideas already proposed",
       similarHint: "Make sure your idea doesn't repeat an existing one before submitting.",
       checking: "Checking for similar ideas...",
@@ -295,7 +314,7 @@ export default function ContentForm({
       editTitle: "콘텐츠 수정", newTitle: "새 콘텐츠",
       title: "제목", format: "포맷", channel: "채널", type: "콘텐츠 유형",
       cycle: "게시 회차", pubDate: "게시일", designUrl: "디자인 링크 (URL)",
-      caption: "캡션 / 카피", script: "스크립트 또는 설명 (최소 80자)", hashtags: "해시태그",
+      caption: "캡션 / 카피", script: `스크립트 또는 설명 (${SCRIPT_RECOMMENDED_CHARS}자 이상 권장)`, hashtags: "해시태그",
       reelSection: "릴스 사양 (필수)", duration: "영상 길이(초, 7–58)",
       aspectRatio: "9:16 세로 영상임을 확인했어요", audioClean: "오디오가 깨끗하고 왜곡이 없어요",
       framing: "주요 피사체가 중앙에 잘 잡혀 있어요",
@@ -304,9 +323,9 @@ export default function ContentForm({
       noMusic: "음악이 영상에 삽입되어 있지 않아요", cover: "커버(썸네일)를 직접 디자인했어요",
       headline: "커버 문구 (3–6단어)", typography: "커버에 KOCO 공식 서체를 사용했어요",
       saveDraft: "임시 저장", submit: "검토 요청", saving: "저장 중...",
-      select: "선택하세요", required: "필수 항목", minChars: "최소 80자",
+      select: "선택하세요", required: "필수 항목", scriptShort: `팀이 아이디어를 잘 이해할 수 있도록 ${SCRIPT_RECOMMENDED_CHARS}자 이상을 권장해요. 그래도 제출할 수 있어요.`,
       urlFormat: "올바른 URL이어야 해요 (https://...)", durationRange: "7–58초 사이여야 해요",
-      headlineWords: "최대 6단어", hashtagsLimit: "해시태그는 최대 3개까지예요",
+      headlineWords: "최대 6단어", hashtagsLimit: `해시태그는 최대 ${HASHTAGS_MAX}개까지예요`,
       titleTaken: "이미 사용 중인 제목이에요", similarFound: "비슷한 아이디어가 이미 있어요",
       similarHint: "제출 전에 기존 아이디어와 겹치지 않는지 확인해 주세요.",
       checking: "비슷한 아이디어 찾는 중...",
@@ -328,14 +347,15 @@ export default function ContentForm({
     if (!channel) errs.channel = L.required;
 
     const hashtagCount = hashtags.trim() ? hashtags.trim().split(/\s+/).filter(Boolean).length : 0;
-    if (hashtagCount > 3) errs.hashtags = L.hashtagsLimit;
+    if (hashtagCount > HASHTAGS_MAX) errs.hashtags = L.hashtagsLimit;
 
     if (submitting) {
       if (!cycleId) errs.cycleId = L.required;
       if (!pubDate) errs.pubDate = L.required;
       if (!designUrl.trim()) errs.designUrl = L.required;
       else if (!/^https?:\/\/.+/.test(designUrl)) errs.designUrl = L.urlFormat;
-      if (script && script.trim().length < 80) errs.script = L.minChars;
+      // Length is only advised (see the warning under the field); an empty
+      // script is still required.
       if (!script.trim()) errs.script = L.required;
 
       if (showReelChecklist) {
@@ -541,6 +561,10 @@ export default function ContentForm({
   }
 
   const headlineWordCount = reelHeadline.trim() ? reelHeadline.trim().split(/\s+/).length : 0;
+  const scriptLength = script.trim().length;
+  // Warn only once something is written: an empty field is the "required"
+  // error's job, and a warning before the first keystroke is just noise.
+  const scriptShort = scriptLength > 0 && scriptLength < SCRIPT_RECOMMENDED_CHARS;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -713,12 +737,32 @@ export default function ContentForm({
             rows={4}
             hasError={!!errors.script}
           />
-          <p className="text-xs mt-1" style={{ color: script.length >= 80 ? "#38B39E" : "#6B6258" }}>
-            {script.length}/80
+          {/* Trimmed, so trailing spaces can't make the counter read 150/150
+              while the warning still shows. */}
+          <p
+            className="text-xs mt-1"
+            style={{
+              color: scriptLength >= SCRIPT_RECOMMENDED_CHARS ? "#1F7A6E" : scriptShort ? "#8A5A00" : "#6B6258",
+            }}
+          >
+            {scriptLength}/{SCRIPT_RECOMMENDED_CHARS}
           </p>
+          {/* A warning, not an error: amber rather than the coral used for
+              blocking errors, and aria-live="polite" rather than role="alert",
+              because nothing here stops the volunteer from sending. */}
+          {scriptShort && (
+            <p
+              aria-live="polite"
+              className="flex items-start gap-1.5 text-xs mt-1 rounded-lg px-2.5 py-2"
+              style={{ color: "#8A5A00", backgroundColor: "rgba(236,160,64,0.12)" }}
+            >
+              <span aria-hidden>⚠</span>
+              <span>{L.scriptShort}</span>
+            </p>
+          )}
         </Field>
 
-        {/* Hashtags — max 3 */}
+        {/* Hashtags — max HASHTAGS_MAX */}
         <Field label={L.hashtags} error={errors.hashtags}>
           <Input
             placeholder="#koico #koicacolombia"
@@ -728,9 +772,9 @@ export default function ContentForm({
           />
           <p
             className="text-xs mt-1"
-            style={{ color: hashtags.trim().split(/\s+/).filter(Boolean).length > 3 ? "#E2693E" : "#6B6258" }}
+            style={{ color: hashtags.trim().split(/\s+/).filter(Boolean).length > HASHTAGS_MAX ? "#8C3010" : "#6B6258" }}
           >
-            {hashtags.trim() ? hashtags.trim().split(/\s+/).filter(Boolean).length : 0}/3
+            {hashtags.trim() ? hashtags.trim().split(/\s+/).filter(Boolean).length : 0}/{HASHTAGS_MAX}
           </p>
         </Field>
       </div>
