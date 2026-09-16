@@ -55,7 +55,7 @@ export default async function DashboardPage() {
   }
 
   // ── Volunteer dashboard ──
-  const [pointsRes, eventsRes, postsRes, proposalsRes] = await Promise.all([
+  const [pointsRes, eventsRes, postsRes] = await Promise.all([
     supabase
       .from("point_log_entries")
       .select("points_earned, date, notes, criteria:point_criteria(category, description_es, description_en)")
@@ -77,13 +77,6 @@ export default async function DashboardPage() {
       .select("id, title, status, publication_date, format")
       .eq("responsible_id", profile.id)
       .order("updated_at", { ascending: false }),
-
-    supabase
-      .from("events")
-      .select("id, name, event_date_start, approval_status")
-      .eq("proposed_by_id", profile.id)
-      .order("created_at", { ascending: false })
-      .limit(5),
   ]);
 
   return (
@@ -92,7 +85,6 @@ export default async function DashboardPage() {
       points={(pointsRes.data ?? []) as unknown as Parameters<typeof DashboardClient>[0]["points"]}
       upcomingEvents={(eventsRes.data ?? []) as unknown as Parameters<typeof DashboardClient>[0]["upcomingEvents"]}
       recentPosts={(postsRes.data ?? []) as unknown as Parameters<typeof DashboardClient>[0]["recentPosts"]}
-      myProposals={(proposalsRes.data ?? []) as unknown as Parameters<typeof DashboardClient>[0]["myProposals"]}
     />
   );
 }

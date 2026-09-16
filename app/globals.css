@@ -9,20 +9,26 @@
   --color-koco-lime:    #CDD909;
   --color-koco-blush:   #FCD4C1;
 
-  /* Neutral / background */
-  --color-koco-cream:        #F2E8D5;
-  --color-koco-warm-white:   #F8F0DE;
+  /* Neutral / background.
+
+     Lightened one step on the same warm scale (was F2E8D5 / F8F0DE / E8DCCF).
+     The page ground carried a lot of cream, which made long working sessions
+     on the review tab feel heavy; the whole ladder moved up together so cards
+     still sit above the page instead of sinking into it, and #FFFFFF rows
+     stay the brightest surface. */
+  --color-koco-cream:        #F6F0E4;
+  --color-koco-warm-white:   #FDFAF3;
   --color-koco-near-black:   #1C1C1C;
-  --color-koco-border:       #E8DCCF;
+  --color-koco-border:       #EFE6D9;
 
   /* Semantic aliases */
-  --color-background:   #F2E8D5;
+  --color-background:   #F6F0E4;
   --color-foreground:   #1C1C1C;
   --color-primary:      #ECA040;
   --color-secondary:    #38B39E;
   --color-danger:       #E2693E;
   --color-success:      #CDD909;
-  --color-card:         #F8F0DE;
+  --color-card:         #FDFAF3;
   --color-card-alt:     #FCD4C1;
 
   /* Typography */
@@ -40,6 +46,57 @@
   --shadow-btn:   0 1px 4px rgba(0,0,0,0.10);
 }
 
+/* ── Default border colour ─────────────────────────────────────────────────
+   Tailwind v4 dropped v3's gray-200 default, so any border without its own
+   colour - every `divide-y` row divider in the app - drew in currentColor,
+   i.e. near-black text colour. Setting the colour on a parent with an inline
+   style does not reach those child borders, which is why the lists had dark
+   rules between every row. DESIGN.md: dividers are the warm border, always.
+   This is Tailwind's own recommended v4 compatibility base, pointed at the
+   brand token; anything that sets a colour explicitly still wins.
+
+   Wrapped in :where() on purpose. Written with the bare `*, ::after, ...`
+   list it is character-for-character preflight's own selector, and Lightning
+   CSS merges the two rules into one - where preflight's `border: 0 solid`
+   shorthand comes last and resets the colour straight back to currentColor.
+   :where() keeps the same zero specificity but a different selector, so it
+   stays its own rule and, sitting later in the base layer, wins. */
+@layer base {
+  :where(*, ::after, ::before, ::backdrop, ::file-selector-button) {
+    border-color: var(--color-koco-border, currentColor);
+  }
+}
+
+/* ── Page measure ──────────────────────────────────────────────────────────
+   One column width for the whole app, set once on the shell in AppShell.
+
+   Pages used to carry their own: 896px on the dashboard and the lists, 768px
+   on events and points, 672px on the forms. The column jumped by up to 224px
+   just moving between tabs, and below about 1200px each page was fluid, so
+   line lengths and the gaps in every justify-between row grew with the
+   window - the same screen looking "broader" than another. A single width
+   makes every page load the same shape at every size.
+
+   960px: wide enough for the admin review table's six columns, and once the
+   viewport passes it nothing stretches further - the page stops growing and
+   only its margins do.
+
+   .measure caps running prose at about 68 characters. The F-pattern research
+   (NN/g) is blunt about this: readers scan the first words of each line and
+   drop down the left edge, so a line that runs the full width of a wide
+   screen mostly goes unread. */
+:root {
+  --page-max: 60rem;
+}
+.page-shell {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+}
+.measure {
+  max-width: 68ch;
+}
+
 /* ── Global base ─────────────────────────────────────────────────────────── */
 :root {
   font-family: "Poppins", sans-serif;
@@ -51,18 +108,13 @@
 }
 
 body {
-  background-color: #F2E8D5;
+  background-color: #F6F0E4;
   color: #1C1C1C;
   font-family: "Poppins", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 /* ── Utility classes not covered by Tailwind v4 ─────────────────────────── */
-
-/* Teal left-border accent for active nav items / selected cards */
-.border-l-koco-active {
-  border-left: 3px solid #38B39E;
-}
 
 /* Soft card shadow */
 .shadow-koco {
@@ -125,17 +177,22 @@ body {
     box-shadow 0.2s var(--ease-out-quart),
     opacity 0.15s ease;
 }
-.btn-hover:hover {
+.btn-hover:hover:not(:disabled) {
   transform: scale(1.02);
   box-shadow: 0 4px 14px rgba(0,0,0,0.10);
 }
-.btn-hover:active {
-  transform: scale(0.97);
+.btn-hover:active:not(:disabled) {
+  transform: scale(0.98);
   transition-duration: 0.08s;
 }
 .btn-hover:focus-visible {
   outline: 2px solid #38B39E;
   outline-offset: 2px;
+}
+/* Anything still hand-rolled at least stops pretending it is pressable. */
+.btn-hover:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Clickable cards: gentle lift */
@@ -149,10 +206,36 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 4px 14px rgba(0,0,0,0.10);
 }
+.card-hover:focus-visible {
+  outline: 2px solid #38B39E;
+  outline-offset: 2px;
+}
+
+/* List rows: a row is clickable but must not lift the way a card does - a
+   long list of rows each jumping on hover is noise. A warm wash and a teal
+   left edge mark the row under the pointer and reinforce the left edge the
+   eye is already running down. */
+.row-hover {
+  box-shadow: inset 3px 0 0 transparent;
+  transition:
+    background-color 0.15s var(--ease-out-quart),
+    box-shadow 0.15s var(--ease-out-quart);
+}
+.row-hover:hover {
+  background-color: rgba(236,160,64,0.07) !important;
+  box-shadow: inset 3px 0 0 #38B39E;
+}
 
 /* Warm focus glow on all form fields */
 input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(226,105,62,0.14);
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  /* The glow alone is 1.16:1 against a warm card - invisible. Every field in
+     the app also sets outline-none, so without this there is no focus
+     indicator on any text input. */
+  outline: 2px solid #E2693E;
+  outline-offset: 1px;
 }
 input, select, textarea {
   transition: border-color 0.15s var(--ease-out-quart), box-shadow 0.15s var(--ease-out-quart);
@@ -214,16 +297,328 @@ button, a { -webkit-tap-highlight-color: transparent; }
   }
 }
 
-/* Status chip colors */
-.chip-draft     { background: rgba(236,160,64,0.15);  color: #B07A1A; }
+/* ── Status chips ────────────────────────────────────────────────────────────
+   The class-name half of the palette in lib/status-colors.ts. Five states carry
+   signal and they mean the same thing for a content post and for a proposed
+   event, so both use one set of colours:
+
+     waiting on an admin   #FCD4C1   submitted / pending
+     an admin has it       #ECA040   in_review
+     approved              #38B39E   approved / confirmed
+     published             #CDD909
+     rejected              #E2693E
+
+   Everything else - not started, in progress, cancelled - stays neutral on
+   purpose, so a scan down the list picks out only the states that need action.
+   Keep these in step with CONTENT_STATUS_COLOR / EVENT_STATUS_COLOR. */
+
+/* Nothing handed over yet. */
+.chip-draft       { background: #EFE7DA; color: #6B6258; }
 /* Workbook Estatus values the sheet distinguishes and the app must too:
    "Sin comenzar" (nothing started yet) vs "En progreso" (being worked on). */
-.chip-not_started { background: rgba(0,0,0,0.06);     color: #6B6258; }
-.chip-in_progress { background: rgba(236,160,64,0.20); color: #B07A1A; }
-.chip-submitted { background: rgba(236,160,64,0.15);  color: #B07A1A; }
-.chip-in_review { background: rgba(56,179,158,0.15);  color: #1F7A6E; }
-.chip-approved  { background: rgba(205,217,9,0.15);   color: #6E7A00; }
-.chip-published { background: rgba(0,0,0,0.08);       color: #1C1C1C; }
-.chip-rejected  { background: rgba(226,105,62,0.15);  color: #8C3010; }
-.chip-cancelled { background: rgba(0,0,0,0.06);       color: #555;    }
-.chip-rescheduled { background: rgba(205,217,9,0.10); color: #6E7A00; }
+.chip-not_started { background: #EFE7DA; color: #6B6258; }
+
+/* The pipeline: in progress, submitted, approved, published - rejected aside.
+   in_review is not part of that run and shares submitted's blush, because
+   both mean the same thing to everyone: it is with an admin. */
+.chip-in_progress { background: #ECA040; color: #4A2C00; }
+.chip-submitted   { background: #FCD4C1; color: #8C3010; }
+.chip-in_review   { background: #FCD4C1; color: #8C3010; }
+.chip-approved    { background: #38B39E; color: #FFFFFF; }
+.chip-published   { background: #CDD909; color: #3F4700; }
+.chip-rejected    { background: #E2693E; color: #FFFFFF; }
+
+/* Over, one way or another. */
+.chip-cancelled   { background: #EFE7DA; color: #6B6258; }
+.chip-rescheduled { background: #F7E3CE; color: #B07A1A; }
+
+/* Events run the same pipeline under different names. */
+.chip-pending     { background: #FCD4C1; color: #8C3010; }
+.chip-confirmed   { background: #38B39E; color: #FFFFFF; }
+
+/* ── Glass pickers ─────────────────────────────────────────────────────────
+   Every dropdown, date field and time field in the app opens one of these
+   (components/glass/*). They replace the browser's own panels entirely: the
+   options list of a <select> and the calendar of <input type="date"> are drawn
+   by the operating system and cannot be styled outside recent Chromium, so a
+   CSS-only glass look would have been glass on one browser and a grey system
+   menu on the next.
+
+   Plain class and attribute selectors only - Lightning CSS, which Next builds
+   this file with, rejects several newer pseudo-class combinations outright
+   and takes the whole stylesheet down with them. */
+
+.glass-panel {
+  /* White, not cream. The first version tinted the sheet #FDFAF3 at 74% -
+     which is the card colour, over a card of that colour, so it composited
+     to exactly the surface behind it and read as a flat panel. Glass has to
+     be lighter and brighter than anything it can sit on: over the cream page
+     or a warm-white card this lifts to near-white, and the edge and shadow
+     below keep it legible as a floating sheet either way. */
+  /* background-COLOR, never the `background` shorthand: the shorthand resets
+     background-image, and the minifier re-emits it after the longhand, which
+     silently deleted the sheen below. Longhands only in this rule. */
+  background-color: rgba(255, 255, 255, 0.34);
+  /* A heavy blur is what sells it: the more the backdrop is smeared, the more
+     the sheet reads as thick glass rather than a translucent rectangle. The
+     brightness lift keeps option text legible over whatever is behind. */
+  -webkit-backdrop-filter: blur(30px) saturate(210%) brightness(1.12);
+  backdrop-filter: blur(30px) saturate(210%) brightness(1.12);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow:
+    0 18px 44px rgba(60, 45, 25, 0.22),
+    0 3px 10px rgba(60, 45, 25, 0.1),
+    /* a hairline of the warm border, so the edge still shows where the
+       shadow alone would vanish into a light surface */
+    0 0 0 1px rgba(107, 98, 88, 0.1),
+    /* lit along the top, catching light along the left, and a faint bounce
+       off the bottom edge - the three highlights a real pane shows */
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 1px 0 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.45);
+  /* A sheen across the top-left, the way light falls on a real pane. The
+     backdrop blur above only reads as glass when there is something varied
+     behind it to blur; over a flat card there is not, and without this the
+     panel just looks like a white box. The gradient is on the element itself,
+     so it shows on any surface. */
+  background-image: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.55) 26%,
+    rgba(255, 255, 255, 0.06) 55%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+  color: #1C1C1C;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107, 98, 88, 0.35) transparent;
+  animation: glass-drop 0.16s var(--ease-out-quart);
+  transform-origin: top center;
+}
+.glass-panel[data-above="true"] {
+  animation-name: glass-rise;
+  transform-origin: bottom center;
+}
+@keyframes glass-drop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes glass-rise {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Without backdrop-filter, translucency just means low contrast. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel { background-color: #FFFDF9; }
+}
+
+/* The closed control. Same frosted material as the panel it opens, one step
+   quieter: a translucent white fill (set inline, see triggerStyle), the blur
+   behind it, and a light sheen down the top edge so it catches the eye as
+   glass rather than as a flat field. */
+.glass-trigger {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  -webkit-backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4),
+    0 1px 3px rgba(60, 45, 25, 0.08);
+  cursor: pointer;
+  transition:
+    border-color 0.15s var(--ease-out-quart),
+    box-shadow 0.15s var(--ease-out-quart),
+    background-color 0.15s var(--ease-out-quart);
+}
+.glass-trigger:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 2px 6px rgba(60, 45, 25, 0.1);
+}
+.glass-trigger:disabled { cursor: not-allowed; }
+.glass-trigger:focus-visible,
+.glass-trigger[aria-expanded="true"] {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 0 3px rgba(226, 105, 62, 0.14);
+}
+
+/* A row in a list panel. */
+.glass-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 0.875rem;
+  color: #1C1C1C;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.12s var(--ease-out-quart);
+}
+.glass-option[data-active="true"] { background: rgba(56, 179, 158, 0.13); }
+.glass-option[aria-selected="true"] {
+  background: rgba(56, 179, 158, 0.2);
+  color: #1F7A6E;
+  font-weight: 700;
+}
+.glass-option[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+
+/* Date grid. */
+.glass-day {
+  height: 34px;
+  border-radius: 9px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1C1C1C;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: background-color 0.12s var(--ease-out-quart), color 0.12s var(--ease-out-quart);
+}
+.glass-day:hover { background: rgba(56, 179, 158, 0.13); }
+.glass-day:focus-visible { box-shadow: inset 0 0 0 2px #38B39E; }
+.glass-day[data-outside="true"] { color: #B3A898; font-weight: 500; }
+.glass-day[data-today="true"] { box-shadow: inset 0 0 0 1.5px rgba(56, 179, 158, 0.55); }
+.glass-day[data-selected="true"] {
+  background: #38B39E;
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(56, 179, 158, 0.35);
+}
+.glass-day:disabled { color: #CFC5B6; cursor: not-allowed; background: transparent; }
+
+/* Time columns. */
+.glass-time-col {
+  max-height: 208px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+  border-radius: 10px;
+  scrollbar-width: thin;
+}
+.glass-time-col:focus-visible { box-shadow: inset 0 0 0 2px rgba(56, 179, 158, 0.45); }
+
+.glass-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #6B6258;
+  transition: background-color 0.12s var(--ease-out-quart);
+}
+.glass-icon-btn:hover { background: rgba(56, 179, 158, 0.13); color: #1F7A6E; }
+
+.glass-text-btn {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background-color 0.12s var(--ease-out-quart);
+}
+.glass-text-btn:hover { background: rgba(56, 179, 158, 0.1); }
+.glass-text-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* The dashboard's idea bar fills from the left once, on arrival - the one
+   motion on that card, and it says "this is a proportion" as it happens.
+   No fill-mode or delay: if the animation never runs (a background tab),
+   the bar is simply already there. */
+@keyframes koco-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.anim-bar {
+  transform-origin: left center;
+  animation: koco-bar-grow 0.5s var(--ease-out-quart);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────
+   One vocabulary for every action in the app (components/ui/Button.tsx).
+
+   It replaced a surface where the same decision wore two costumes: the review
+   queue showed a solid teal "Aprobar" beside two quiet tints, while the panel
+   inside the post showed four equal-weight solid buttons - reject as loud as
+   approve - one of which was filled in the panel's own colour and so had no
+   visible edge at all.
+
+   Contrast note: white on the brand orange measures 2.2:1 and white on the
+   teal 2.6:1, both far under the 4.5:1 a 14px label needs. The fills are the
+   brand and stay; the label goes dark instead (#4A2C00 on orange is 5.9:1,
+   #0E3F37 on teal is 5.6:1). Dark-on-amber is already how .chip-in_progress
+   reads, so this is the palette agreeing with itself, not a new colour. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition:
+    transform 0.15s var(--ease-out-quart),
+    box-shadow 0.2s var(--ease-out-quart),
+    background-color 0.15s var(--ease-out-quart),
+    border-color 0.15s var(--ease-out-quart),
+    opacity 0.15s ease;
+}
+.btn:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+  transition-duration: 0.08s;
+}
+.btn:focus-visible {
+  /* Teal, matching .btn-hover and DESIGN.md - the app had two focus rings. */
+  outline: 2px solid #38B39E;
+  outline-offset: 2px;
+}
+/* A disabled button must look disabled AND stop answering the pointer. The
+   old .btn-hover had no :disabled rule at all, so a button mid-save still
+   lifted and shadowed under the cursor while ignoring the click. */
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary     { background-color: #ECA040; color: #4A2C00; }
+.btn-primary:hover:not(:disabled)     { background-color: #E29527; }
+.btn-confirm     { background-color: #38B39E; color: #0E3F37; }
+.btn-confirm:hover:not(:disabled)     { background-color: #2FA28E; }
+.btn-secondary   { background-color: rgba(255,255,255,0.72); color: #1C1C1C; border: 1.5px solid #D8CEC1; }
+.btn-secondary:hover:not(:disabled)   { background-color: #FFFFFF; border-color: #B9AE9E; }
+/* Destructive is an outline, never a fill: it must not compete with the
+   constructive choice sitting beside it, and it should cost a beat to pick. */
+.btn-destructive { background-color: transparent; color: #8C3010; border: 1.5px solid #E2693E; }
+.btn-destructive:hover:not(:disabled) { background-color: rgba(226,105,62,0.12); }
+/* Tertiary, but still a control: a dashed-quiet border keeps it from reading
+   as a paragraph of bold text floating in the panel. */
+.btn-ghost       { background-color: transparent; color: #6B6258; border: 1.5px solid rgba(107,98,88,0.28); box-shadow: none; }
+.btn-ghost:hover:not(:disabled)       { background-color: rgba(107,98,88,0.09); color: #1C1C1C; }
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: btn-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  /* Still a progress signal, just not a spinning one. */
+  .btn-spinner { animation: none; border-top-color: currentColor; opacity: 0.5; }
+}

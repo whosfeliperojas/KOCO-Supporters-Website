@@ -60,7 +60,7 @@ export default function EventSignupsList({ eventId, count }: { eventId: string; 
   }
 
   return (
-    <div className="mt-2 pt-2" style={{ borderTop: "1px solid #E8DCCF" }}>
+    <div className="mt-2 pt-2" style={{ borderTop: "1px solid #EFE6D9" }}>
       <button
         onClick={toggle}
         aria-expanded={open}
@@ -73,19 +73,19 @@ export default function EventSignupsList({ eventId, count }: { eventId: string; 
       {open && (
         <div className="mt-1.5 flex flex-wrap gap-1.5 anim-in">
           {status === "loading" ? null : status === "error" ? (
-            <p className="text-xs" style={{ color: "#888" }}>{L.failed}</p>
+            <p className="text-xs" style={{ color: "#6B6258" }}>{L.failed}</p>
           ) : (items ?? []).length === 0 ? (
-            <p className="text-xs" style={{ color: "#888" }}>{L.none}</p>
+            <p className="text-xs" style={{ color: "#6B6258" }}>{L.none}</p>
           ) : (
             (items ?? []).map((s) => (
               <span
                 key={s.profile_id}
                 className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: "#F8F0DE", color: "#1C1C1C" }}
+                style={{ backgroundColor: "#FDFAF3", color: "#1C1C1C" }}
               >
                 {s.name}
                 {s.role === "support" && (
-                  <span style={{ color: "#9A8F84", fontWeight: 400 }}>· {L.support}</span>
+                  <span style={{ color: "#6B6258", fontWeight: 400 }}>· {L.support}</span>
                 )}
               </span>
             ))

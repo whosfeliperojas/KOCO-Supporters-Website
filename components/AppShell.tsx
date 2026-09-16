@@ -31,9 +31,9 @@ const ADMIN_NAV = [
 ];
 
 const SHELL_T = {
-  es: { adminSection: "Administración", adminBadge: "Administrador/a", signOut: "Cerrar sesión" },
-  en: { adminSection: "Administration", adminBadge: "Admin",           signOut: "Sign out" },
-  ko: { adminSection: "관리",            adminBadge: "관리자",           signOut: "로그아웃" },
+  es: { adminSection: "Administración", adminBadge: "Administrador/a", signOut: "Cerrar sesión", openMenu: "Abrir menú", closeMenu: "Cerrar menú" },
+  en: { adminSection: "Administration", adminBadge: "Admin",           signOut: "Sign out", openMenu: "Open menu", closeMenu: "Close menu" },
+  ko: { adminSection: "관리",            adminBadge: "관리자",           signOut: "로그아웃", openMenu: "메뉴 열기", closeMenu: "메뉴 닫기" },
 } as const;
 
 // Official KOCO wordmark from the brandbook (docs/brand/final_assets)
@@ -174,12 +174,19 @@ function Sidebar({ profile, locale, contentBadge = 0, onClose }: {
   }));
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: "#F2E8D5" }}>
+    <div className="flex flex-col h-full" style={{ backgroundColor: "#F6F0E4" }}>
       {/* Header */}
       <div className="px-5 py-5 flex items-center justify-between">
         <KocoLogo height={52} />
         {onClose && (
-          <button onClick={onClose} className="text-lg" style={{ color: "#888" }}>✕</button>
+          <button
+            onClick={onClose}
+            aria-label={T.closeMenu}
+            className="w-11 h-11 -mr-2 flex items-center justify-center rounded-lg text-lg btn-hover"
+            style={{ color: "#6B6258" }}
+          >
+            <span aria-hidden>✕</span>
+          </button>
         )}
       </div>
 
@@ -192,7 +199,7 @@ function Sidebar({ profile, locale, contentBadge = 0, onClose }: {
           {profile.display_name ?? profile.full_name.split(" ")[0]}
         </p>
         {profile.is_admin && (
-          <span className="text-xs font-medium" style={{ color: "#E2693E" }}>
+          <span className="text-xs font-medium" style={{ color: "#8C3010" }}>
             {T.adminBadge}
           </span>
         )}
@@ -280,7 +287,7 @@ function AppShellInner({
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-56 shrink-0 border-r" style={{ borderColor: "#E8DCCF" }}>
+      <aside className="hidden md:flex flex-col w-56 shrink-0 border-r" style={{ borderColor: "#EFE6D9" }}>
         <Sidebar profile={profile} contentBadge={contentBadge} locale={locale} />
       </aside>
 
@@ -302,22 +309,32 @@ function AppShellInner({
         {/* Desktop top bar - the sidebar carries branding and nav, so this row
             exists only to hold the bell top-right, matching the mobile header's
             colors so the two feel like one design rather than two. */}
-        <header className="hidden md:flex items-center justify-end px-6 py-3 border-b" style={{ backgroundColor: "#F2E8D5", borderColor: "#E8DCCF" }}>
+        <header className="hidden md:flex items-center justify-end px-6 py-3 border-b" style={{ backgroundColor: "#F6F0E4", borderColor: "#EFE6D9" }}>
           <NotificationBell isAdmin={profile.is_admin} initialUnread={unreadNotifications} />
         </header>
 
         {/* Mobile top bar */}
-        <header className="flex md:hidden items-center justify-between px-4 py-3 border-b" style={{ backgroundColor: "#F2E8D5", borderColor: "#E8DCCF" }}>
-          <button onClick={() => setMobileOpen(true)} className="text-xl" style={{ color: "#1C1C1C" }}>
-            ☰
+        <header className="flex md:hidden items-center justify-between px-4 py-3 border-b" style={{ backgroundColor: "#F6F0E4", borderColor: "#EFE6D9" }}>
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label={SHELL_T[locale].openMenu}
+            aria-expanded={mobileOpen}
+            aria-controls="app-drawer"
+            className="w-11 h-11 -ml-2 flex items-center justify-center rounded-lg text-xl btn-hover"
+            style={{ color: "#1C1C1C" }}
+          >
+            <span aria-hidden>☰</span>
           </button>
           <KocoLogo height={34} />
           <NotificationBell isAdmin={profile.is_admin} initialUnread={unreadNotifications} />
         </header>
 
         {/* Page content */}
+        {/* One column for every page: the width lives here, not in each
+            screen, so moving between tabs never changes the shape of the
+            page and nothing keeps stretching as the window grows. */}
         <main className="flex-1 overflow-y-auto p-5 md:p-8">
-          {children}
+          <div className="page-shell">{children}</div>
         </main>
       </div>
     </div>

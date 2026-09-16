@@ -89,7 +89,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#F2E8D5" }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#F6F0E4" }}>
       {/* Slide language switcher */}
       <div
         role="radiogroup"
@@ -127,14 +127,14 @@ export default function ChangePasswordPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8 anim-in">
           <div className="inline-flex gap-0.5 text-4xl font-bold mb-2 leading-none" aria-label="KOCO">
-            <span style={{ color: "#ECA040" }}>K</span>
-            <span style={{ color: "#38B39E" }}>O</span>
-            <span style={{ color: "#E2693E" }}>C</span>
-            <span style={{ color: "#CDD909" }}>O</span>
+            <span style={{ color: "#8A5A00" }}>K</span>
+            <span style={{ color: "#1F7A6E" }}>O</span>
+            <span style={{ color: "#8C3010" }}>C</span>
+            <span style={{ color: "#6E7A00" }}>O</span>
           </div>
         </div>
 
-        <div className="rounded-2xl p-8 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
+        <div className="rounded-2xl p-8 shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 1 } as React.CSSProperties}>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <h1 className="text-2xl font-bold mb-1" style={{ color: "#1C1C1C" }}>{tx.heading}</h1>
@@ -150,7 +150,7 @@ export default function ChangePasswordPage() {
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
                 className="w-full px-4 py-2.5 text-sm rounded-lg outline-none"
-                style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                style={{ backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
               />
             </div>
 
@@ -163,11 +163,11 @@ export default function ChangePasswordPage() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 className="w-full px-4 py-2.5 text-sm rounded-lg outline-none"
-                style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                style={{ backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
               />
             </div>
 
-            {error && <p className="text-xs anim-pop" style={{ color: "#E2693E" }}>{error}</p>}
+            {error && <p className="text-xs anim-pop" style={{ color: "#8C3010" }}>{error}</p>}
 
             <button
               type="submit"

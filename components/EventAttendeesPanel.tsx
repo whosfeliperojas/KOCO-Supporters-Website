@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
+import GlassSelect from "@/components/glass/GlassSelect";
 
 export type EventSignup = {
   id: string;
@@ -145,7 +146,7 @@ export default function EventAttendeesPanel({
   }
 
   return (
-    <div className="mt-3 pt-3" style={{ borderTop: "1px solid #E8DCCF" }}>
+    <div className="mt-3 pt-3" style={{ borderTop: "1px solid #EFE6D9" }}>
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
@@ -154,7 +155,7 @@ export default function EventAttendeesPanel({
       >
         {open ? `▾ ${L.hide}` : `▸ ${L.show} (${signups.length})`}
         {!open && recorded && (
-          <span className="ml-1.5" style={{ color: "#888", fontWeight: 400 }}>
+          <span className="ml-1.5" style={{ color: "#6B6258", fontWeight: 400 }}>
             · {attendedCount} {L.summary}
           </span>
         )}
@@ -163,9 +164,9 @@ export default function EventAttendeesPanel({
       {open && (
         <div className="mt-2 space-y-2 anim-in">
           {signups.length === 0 ? (
-            <p className="text-xs py-2" style={{ color: "#888" }}>{L.none}</p>
+            <p className="text-xs py-2" style={{ color: "#6B6258" }}>{L.none}</p>
           ) : (
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #E8DCCF" }}>
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #EFE6D9" }}>
               {signups.map((s, i) => (
                 <div
                   key={s.id}
@@ -176,14 +177,14 @@ export default function EventAttendeesPanel({
                     <span
                       className="text-xs font-medium"
                       style={{
-                        color: s.rsvp === "declined" ? "#9A8F84" : "#1C1C1C",
+                        color: s.rsvp === "declined" ? "#6B6258" : "#1C1C1C",
                         textDecoration: s.rsvp === "declined" ? "line-through" : undefined,
                       }}
                     >
                       {s.name}
                     </span>
                     {s.group_code && (
-                      <span className="text-xs" style={{ color: "#9A8F84" }}>{s.group_code}</span>
+                      <span className="text-xs" style={{ color: "#6B6258" }}>{s.group_code}</span>
                     )}
                     {s.role === "support" && (
                       <span
@@ -196,7 +197,7 @@ export default function EventAttendeesPanel({
                     {s.rsvp === "declined" && (
                       <span
                         className="label-style text-xs px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: "rgba(0,0,0,0.06)", color: "#888" }}
+                        style={{ backgroundColor: "rgba(0,0,0,0.06)", color: "#6B6258" }}
                       >
                         {L.declined}
                       </span>
@@ -234,7 +235,7 @@ export default function EventAttendeesPanel({
                         aria-label={`${L.remove}: ${s.name}`}
                         disabled={busyId === s.id}
                         className="text-sm px-1.5 leading-none btn-hover rounded"
-                        style={{ color: "#B0A79C" }}
+                        style={{ color: "#6B6258" }}
                       >
                         ×
                       </button>
@@ -247,29 +248,20 @@ export default function EventAttendeesPanel({
 
           <div className="flex items-center gap-2 flex-wrap">
             <label className="text-xs font-medium" style={{ color: "#6B6258" }}>{L.add}:</label>
-            <select
+            <GlassSelect
+              variant="compact"
+              ariaLabel={L.add}
               value=""
               disabled={busyId === "add" || addable.length === 0}
-              onChange={(e) => addPerson(e.target.value)}
-              className="px-2 py-1.5 text-xs rounded-lg outline-none"
-              style={{
-                backgroundColor: "#FFFFFF",
-                border: "1.5px solid #DDD0C4",
-                color: "#1C1C1C",
-                opacity: busyId === "add" ? 0.6 : 1,
-              }}
-            >
-              <option value="">
-                {busyId === "add" ? L.saving : addable.length === 0 ? L.allIn : L.choose}
-              </option>
-              {addable.map((p) => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </select>
-            <span className="text-xs" style={{ color: "#9A8F84" }}>{L.addHint}</span>
+              onChange={(v) => v && addPerson(v)}
+              placeholder={busyId === "add" ? L.saving : addable.length === 0 ? L.allIn : L.choose}
+              panelMinWidth={240}
+              options={addable.map((p) => ({ value: p.id, label: p.full_name }))}
+            />
+            <span className="text-xs" style={{ color: "#6B6258" }}>{L.addHint}</span>
           </div>
 
-          {failed && <p className="text-xs" style={{ color: "#E2693E" }}>{L.failed}</p>}
+          {failed && <p className="text-xs" style={{ color: "#8C3010" }}>{L.failed}</p>}
         </div>
       )}
     </div>
@@ -290,14 +282,14 @@ function AttendanceToggle({
   const options: { v: boolean | null; text: string; label: string; on: string }[] = [
     { v: true,  text: "✓", label: labels.came,   on: "#38B39E" },
     { v: false, text: "✕", label: labels.missed, on: "#E2693E" },
-    { v: null,  text: "–", label: labels.unset,  on: "#9A8F84" },
+    { v: null,  text: "–", label: labels.unset,  on: "#6B6258" },
   ];
   return (
     <span
       role="radiogroup"
       aria-label={labels.came}
       className="inline-flex rounded-lg overflow-hidden"
-      style={{ border: "1px solid #E8DCCF", opacity: disabled ? 0.5 : 1 }}
+      style={{ border: "1px solid #EFE6D9", opacity: disabled ? 0.5 : 1 }}
     >
       {options.map((o) => {
         const active = value === o.v;

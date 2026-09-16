@@ -49,12 +49,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const T = UNLINKED_T[lang];
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: "#F2E8D5" }}>
-        <div className="max-w-md rounded-2xl p-8 shadow-koco text-center space-y-3 anim-in" style={{ backgroundColor: "#F8F0DE" }}>
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: "#F6F0E4" }}>
+        <div className="max-w-md rounded-2xl p-8 shadow-koco text-center space-y-3 anim-in" style={{ backgroundColor: "#FDFAF3" }}>
           <p className="text-3xl">✦</p>
           <h1 className="text-lg font-bold" style={{ color: "#1C1C1C" }}>{T.title}</h1>
           <p className="text-sm" style={{ color: "#555" }}>{T.body(user.email ?? "")}</p>
-          <a href="/auth/login" className="inline-block text-sm underline" style={{ color: "#38B39E" }}>
+          <a href="/auth/login" className="inline-block text-sm underline" style={{ color: "#1F7A6E" }}>
             {T.back}
           </a>
         </div>

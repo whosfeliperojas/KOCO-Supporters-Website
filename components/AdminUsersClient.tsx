@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "@/lib/locale-context";
+import GlassSelect from "@/components/glass/GlassSelect";
 
 type Profile = {
   id: string;
@@ -206,11 +207,11 @@ export default function AdminUsersClient({
     router.refresh();
   }
 
-  const inputStyle = { backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" };
+  const inputStyle = { backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" };
 
   const actionBtn = {
-    border: "1.5px solid #E8DCCF",
-    backgroundColor: "#F8F0DE",
+    border: "1.5px solid #EFE6D9",
+    backgroundColor: "#FDFAF3",
     color: "#1C1C1C",
   };
 
@@ -233,10 +234,10 @@ export default function AdminUsersClient({
             <p className="text-xs mt-1" style={{ color: "#6B6258" }}>{description}</p>
           )}
         </div>
-        <div className="rounded-2xl overflow-hidden shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
+        <div className="rounded-2xl overflow-hidden shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
           <div
-            className="grid grid-cols-12 px-4 py-2 text-xs font-bold uppercase tracking-wider"
-            style={{ backgroundColor: "#ECA040", color: "white" }}
+            className="hidden md:grid grid-cols-12 px-4 py-2 text-xs font-bold uppercase tracking-wider"
+            style={{ backgroundColor: "#ECA040", color: "#4A2C00" }}
           >
             <span className="col-span-3">{L.name}</span>
             <span className="col-span-1">{L.group}</span>
@@ -246,46 +247,48 @@ export default function AdminUsersClient({
             <span className="col-span-3 text-right">{L.actions}</span>
           </div>
 
-          <div className="divide-y" style={{ borderColor: "#E8DCCF" }}>
+          <div className="divide-y" style={{ borderColor: "#EFE6D9" }}>
             {users.map((p, i) => (
               <div key={p.id}>
                 <div
-                  className="grid grid-cols-12 px-4 py-3 items-center text-sm"
+                  className="grid grid-cols-2 md:grid-cols-12 gap-y-1 px-4 py-3 md:items-center text-sm"
                   style={{
-                    backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#F8F0DE",
+                    backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FDFAF3",
                     opacity: variant === "inactive" ? 0.75 : 1,
                   }}
                 >
-                  <div className="col-span-3 min-w-0">
+                  <div className="col-span-2 md:col-span-3 min-w-0">
                     <p className="font-medium truncate" style={{ color: "#1C1C1C" }}>{p.full_name}</p>
                     {p.display_name && (
                       <p className="text-xs truncate" style={{ color: "#6B6258" }}>{p.display_name}</p>
                     )}
                   </div>
-                  <span className="col-span-1 text-xs font-medium" style={{ color: "#38B39E" }}>
+                  <span className="col-span-1 text-xs font-medium" style={{ color: "#1F7A6E" }}>
+                    <span className="md:hidden" style={{ color: "#6B6258" }}>{L.group}: </span>
                     {p.group?.code ?? "—"}
                   </span>
-                  <span className="col-span-1 text-right font-bold" style={{ color: "#6E7A00" }}>
+                  <span className="col-span-1 md:text-right font-bold" style={{ color: "#6E7A00" }}>
+                    <span className="md:hidden font-normal" style={{ color: "#6B6258" }}>{L.points}: </span>
                     {pointTotals[p.id] ?? 0}
                   </span>
-                  <span className="col-span-2 text-xs" style={{ color: p.is_admin ? "#E2693E" : "#6B6258" }}>
+                  <span className="col-span-2 text-xs" style={{ color: p.is_admin ? "#8C3010" : "#6B6258" }}>
                     {p.is_admin ? L.admin : L.volunteer}
                   </span>
                   <span
                     className="col-span-2 text-xs font-medium"
-                    style={{ color: p.auth_user_id ? "#38B39E" : "#B07A1A" }}
+                    style={{ color: p.auth_user_id ? "#1F7A6E" : "#8A5A00" }}
                   >
                     {p.auth_user_id ? L.linked_ok : variant === "inactive" ? L.noAccount : L.pending}
                   </span>
 
-                  <div className="col-span-3 flex flex-wrap gap-1.5 justify-end">
+                  <div className="col-span-2 md:col-span-3 flex flex-wrap gap-1.5 md:justify-end pt-1 md:pt-0">
                     {busyId === p.id ? (
                       <span className="text-xs" style={{ color: "#6B6258" }}>{L.working}</span>
                     ) : variant === "inactive" ? (
                       <button
                         onClick={() => runAction(p, "reactivate")}
                         className="text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
-                        style={{ ...actionBtn, color: "#38B39E" }}
+                        style={{ ...actionBtn, color: "#1F7A6E" }}
                       >
                         {L.reactivateBtn}
                       </button>
@@ -303,7 +306,7 @@ export default function AdminUsersClient({
                         <button
                           onClick={() => setConfirmId(confirmId === p.id ? null : p.id)}
                           className="text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
-                          style={{ ...actionBtn, color: "#E2693E" }}
+                          style={{ ...actionBtn, color: "#8C3010" }}
                         >
                           {L.offboardBtn}
                         </button>
@@ -349,11 +352,11 @@ export default function AdminUsersClient({
   const inactive = profiles.filter((p) => !p.active);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold anim-in" style={{ color: "#1C1C1C" }}>{L.title}</h1>
 
       {/* Create access form */}
-      <section className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
+      <section className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 1 } as React.CSSProperties}>
         <div>
           <h2 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{L.createTitle}</h2>
           <p className="text-xs mt-1" style={{ color: "#6B6258" }}>{L.createDesc}</p>
@@ -364,22 +367,20 @@ export default function AdminUsersClient({
           {unlinked.length > 0 && (
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.linkExisting}</label>
-              <select
+              <GlassSelect
+                ariaLabel={L.linkExisting}
                 value={linkProfileId}
-                onChange={(e) => setLinkProfileId(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
-                style={inputStyle}
-              >
-                <option value="">{L.newProfile}</option>
-                {unlinked.map((p) => (
-                  <option key={p.id} value={p.id}>{p.full_name} {p.group ? `(${p.group.code})` : ""}</option>
-                ))}
-              </select>
+                onChange={setLinkProfileId}
+                options={[
+                  { value: "", label: L.newProfile },
+                  ...unlinked.map((p) => ({ value: p.id, label: p.full_name, hint: p.group?.code })),
+                ]}
+              />
             </div>
           )}
 
           {!linkProfileId && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.firstName}</label>
                 <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
@@ -397,13 +398,16 @@ export default function AdminUsersClient({
           </div>
 
           {!linkProfileId && (
-            <div className="grid grid-cols-2 gap-3 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:items-end">
               <div className="space-y-1">
                 <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.groupLabel}</label>
-                <select value={groupId} onChange={(e) => setGroupId(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle}>
-                  <option value="">{L.selectGroup}</option>
-                  {groups.map((g) => <option key={g.id} value={g.id}>{g.code} — {g.name}</option>)}
-                </select>
+                <GlassSelect
+                  ariaLabel={L.groupLabel}
+                  value={groupId}
+                  onChange={setGroupId}
+                  placeholder={L.selectGroup}
+                  options={groups.map((g) => ({ value: g.id, label: g.code, hint: g.name }))}
+                />
               </div>
               <label className="flex items-center gap-2 pb-2.5 cursor-pointer">
                 <input type="checkbox" checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#E2693E" }} />
@@ -412,7 +416,7 @@ export default function AdminUsersClient({
             </div>
           )}
 
-          {error && <p className="text-xs anim-pop" style={{ color: "#E2693E" }}>{error}</p>}
+          {error && <p className="text-xs anim-pop" style={{ color: "#8C3010" }}>{error}</p>}
 
           {result && (
             <div className="rounded-lg px-4 py-3 anim-pop" style={{ backgroundColor: "rgba(56,179,158,0.12)" }}>

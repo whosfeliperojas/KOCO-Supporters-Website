@@ -58,30 +58,40 @@ export default function PointsClient({
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 anim-in" style={{ "--i": 0 } as React.CSSProperties}>
         <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.title}</h1>
         <div className="text-right w-40 shrink-0">
-          <p className="label-style" style={{ color: "#888" }}>{L.total}</p>
-          <p className="text-4xl font-bold anim-pop" style={{ color: "#CDD909" }}>{total}</p>
-          <p className="text-xs mb-1.5" style={{ color: "#888" }}>{L.pts}</p>
+          <p className="label-style" style={{ color: "#6B6258" }}>{L.total}</p>
+          <p className="text-4xl font-bold anim-pop" style={{ color: "#6E7A00" }}>{total}</p>
+          <p className="text-xs mb-1.5" style={{ color: "#6B6258" }}>{L.pts}</p>
           {(() => {
             const met = total >= COMPLETION_TARGET_POINTS;
             const pct = Math.min(100, (total / COMPLETION_TARGET_POINTS) * 100);
             return (
               <>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(0,0,0,0.06)" }}>
+                <div
+                  role="progressbar"
+                  aria-valuenow={Math.round(total)}
+                  aria-valuemin={0}
+                  aria-valuemax={COMPLETION_TARGET_POINTS}
+                  aria-label={L.total}
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ backgroundColor: "#EFE6D9" }}
+                >
                   <div
                     style={{
-                      width: `${pct}%`,
+                      width: "100%",
                       height: "100%",
+                      transformOrigin: "left center",
+                      transform: `scaleX(${pct / 100})`,
                       backgroundColor: met ? "#38B39E" : "#CDD909",
-                      transition: "width 400ms var(--ease-out-quart)",
+                      transition: "transform 400ms var(--ease-out-quart)",
                     }}
                   />
                 </div>
-                <p className="text-xs mt-1 text-right" style={{ color: met ? "#1F7A6E" : "#888" }}>
+                <p className="text-xs mt-1 text-right" style={{ color: met ? "#1F7A6E" : "#6B6258" }}>
                   {met ? L.met : L.toGo.replace("{n}", String(Math.ceil(COMPLETION_TARGET_POINTS - total)))}
                 </p>
               </>
@@ -91,11 +101,11 @@ export default function PointsClient({
       </div>
 
       {entries.length === 0 ? (
-        <div className="rounded-2xl text-center py-14 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
+        <div className="rounded-2xl text-center py-14 shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
           {/* Official brand sticker: hearts for the points to come */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/art-heart.webp" alt="" aria-hidden className="mx-auto mb-3 select-none" style={{ width: 150 }} />
-          <p className="text-sm" style={{ color: "#888" }}>{L.noPoints}</p>
+          <p className="text-sm" style={{ color: "#6B6258" }}>{L.noPoints}</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -106,25 +116,25 @@ export default function PointsClient({
                 <h2 className="text-sm font-bold capitalize" style={{ color: "#1C1C1C" }}>
                   {monthLabel(month)}
                 </h2>
-                <span className="text-sm font-bold" style={{ color: "#CDD909" }}>
+                <span className="text-sm font-bold" style={{ color: "#6E7A00" }}>
                   +{monthTotal(monthEntries)} {L.pts}
                 </span>
               </div>
 
               {/* Table */}
-              <div className="rounded-2xl overflow-hidden shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
+              <div className="rounded-2xl overflow-hidden shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
                 {/* Header row */}
                 <div
                   className="grid grid-cols-12 px-4 py-2 text-xs font-bold uppercase tracking-wider"
-                  style={{ backgroundColor: "#ECA040", color: "white" }}
+                  style={{ backgroundColor: "#ECA040", color: "#4A2C00" }}
                 >
-                  <span className="col-span-2">{L.date}</span>
-                  <span className="col-span-5">{L.criteria}</span>
+                  <span className="col-span-3 md:col-span-2">{L.date}</span>
+                  <span className="col-span-7 md:col-span-5">{L.criteria}</span>
                   <span className="col-span-3 hidden md:block">{L.notes}</span>
                   <span className="col-span-2 text-right">{L.earned}</span>
                 </div>
 
-                <div className="divide-y" style={{ borderColor: "#E8DCCF" }}>
+                <div className="divide-y" style={{ borderColor: "#EFE6D9" }}>
                   {monthEntries.map((entry, i) => {
                     // Criterion name + its full description = the reason the
                     // points were given (description falls back es ↔ en)
@@ -141,10 +151,10 @@ export default function PointsClient({
                       <div
                         key={entry.id}
                         className="grid grid-cols-12 px-4 py-3 items-center text-sm"
-                        style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#F8F0DE" }}
+                        style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FDFAF3" }}
                       >
-                        <span className="col-span-2 text-xs" style={{ color: "#888" }}>{dateLabel}</span>
-                        <div className="col-span-8 md:col-span-5 pr-2">
+                        <span className="col-span-3 md:col-span-2 text-xs" style={{ color: "#6B6258" }}>{dateLabel}</span>
+                        <div className="col-span-7 md:col-span-5 pr-2">
                           <span className="font-medium" style={{ color: "#1C1C1C" }}>
                             {entry.criteria?.category ?? "—"}
                           </span>
@@ -160,18 +170,18 @@ export default function PointsClient({
                             </span>
                           )}
                           {reason && (
-                            <p className="text-xs mt-0.5" style={{ color: "#75695C" }}>{reason}</p>
+                            <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>{reason}</p>
                           )}
                           {entry.notes && (
-                            <p className="text-xs mt-0.5 md:hidden" style={{ color: "#888", fontStyle: "italic" }}>
+                            <p className="text-xs mt-0.5 md:hidden" style={{ color: "#6B6258", fontStyle: "italic" }}>
                               {entry.notes}
                             </p>
                           )}
                         </div>
-                        <span className="col-span-3 hidden md:block text-xs" style={{ color: "#888" }}>
+                        <span className="col-span-3 hidden md:block text-xs" style={{ color: "#6B6258" }}>
                           {entry.notes ?? "—"}
                         </span>
-                        <span className="col-span-2 text-right font-bold" style={{ color: "#CDD909" }}>
+                        <span className="col-span-2 text-right font-bold" style={{ color: "#6E7A00" }}>
                           +{entry.points_earned}
                         </span>
                       </div>

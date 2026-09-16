@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import type { ContentPost, ContentStatus } from "@/lib/types";
+import GlassSelect, { type GlassOption } from "@/components/glass/GlassSelect";
+import GlassDatePicker from "@/components/glass/GlassDatePicker";
+import Button from "@/components/ui/Button";
 
 // Stored values stay canonical (existing DB rows use them); labels localize per language
 const FORMATS: { value: string; es: string; en: string; ko: string }[] = [
@@ -47,13 +50,18 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
+    // data-field-error is how save() finds the first problem to scroll to.
+    <div className="space-y-1" data-field-error={error ? "true" : undefined}>
       <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>
         {label}
-        {required && <span className="ml-1" style={{ color: "#38B39E" }}>*</span>}
+        {/* Teal is the interactive colour; a static required glyph wearing it
+            was a small One Job leak. Dark coral also clears 4.5:1. */}
+        {required && <span className="ml-1" style={{ color: "#8C3010" }}>*</span>}
       </label>
       {children}
-      {error && <p className="text-xs" style={{ color: "#E2693E" }}>{error}</p>}
+      {/* role=alert so the failure is announced, not just tinted - the border
+          colour alone was the only signal a screen reader never gets. */}
+      {error && <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{error}</p>}
     </div>
   );
 }
@@ -65,7 +73,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { hasError?:
       {...rest}
       className="w-full px-3 py-2.5 text-sm rounded-lg outline-none transition-all"
       style={{
-        backgroundColor: "#F8F0DE",
+        backgroundColor: "#FDFAF3",
         border: `1.5px solid ${hasError ? "#E2693E" : "#DDD0C4"}`,
         color: "#1C1C1C",
       }}
@@ -83,7 +91,7 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { h
       rows={3}
       className="w-full px-3 py-2.5 text-sm rounded-lg outline-none transition-all resize-none"
       style={{
-        backgroundColor: "#F8F0DE",
+        backgroundColor: "#FDFAF3",
         border: `1.5px solid ${hasError ? "#E2693E" : "#DDD0C4"}`,
         color: "#1C1C1C",
       }}
@@ -93,27 +101,26 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { h
   );
 }
 
-function Select({ children, value, onChange, hasError, disabled }: {
-  children: React.ReactNode;
+/** The form's dropdown - the app-wide glass select, sized to sit beside Input. */
+function Select({ options, value, onChange, hasError, disabled, placeholder, ariaLabel }: {
+  options: GlassOption[];
   value: string;
   onChange: (v: string) => void;
   hasError?: boolean;
   disabled?: boolean;
+  placeholder?: string;
+  ariaLabel?: string;
 }) {
   return (
-    <select
-      disabled={disabled}
+    <GlassSelect
+      options={options}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
-      style={{
-        backgroundColor: "#F8F0DE",
-        border: `1.5px solid ${hasError ? "#E2693E" : "#DDD0C4"}`,
-        color: "#1C1C1C",
-      }}
-    >
-      {children}
-    </select>
+      onChange={onChange}
+      hasError={hasError}
+      disabled={disabled}
+      placeholder={placeholder}
+      ariaLabel={ariaLabel}
+    />
   );
 }
 
@@ -188,6 +195,8 @@ export default function ContentForm({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Which of the two buttons was pressed, so only that one spins.
+  const [pendingAction, setPendingAction] = useState<"save" | "submit" | null>(null);
 
   // Co-authors, on the create form only. Once the post exists the credit list
   // is edited from ContributorsPanel on the post page, so there is one editor
@@ -379,20 +388,38 @@ export default function ContentForm({
   }
 
   async function save(submitForReview: boolean) {
+    setPendingAction(submitForReview ? "submit" : "save");
     const errs = validate(submitForReview);
-    if (Object.keys(errs).length) { setErrors(errs); return; }
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      // Validation can fail on a field a screen and a half above the button.
+      // Without this the page simply does not move and the tap looks ignored,
+      // so people tap again. Take them to the problem and focus it.
+      requestAnimationFrame(() => {
+        const first = document.querySelector<HTMLElement>("[data-field-error='true']");
+        first?.scrollIntoView({ block: "center", behavior: "smooth" });
+        first?.querySelector<HTMLElement>("input, textarea, button")?.focus({ preventScroll: true });
+      });
+      return;
+    }
+
+    // Set BEFORE the similar-titles round trip, not after: that request is the
+    // slowest part of saving on a phone, and the button used to stay fully
+    // live and re-clickable for its whole duration.
+    setSaving(true);
 
     // Block near-duplicate titles (another volunteer already used it)
     const { titleMatches: matches } = await checkSimilar();
     const duplicate = matches.find((m) => m.sim >= 0.6);
     if (duplicate) {
+      setSaving(false);
+      setPendingAction(null);
+    setPendingAction(null);
       setErrors({ title: `${L.titleTaken} — "${duplicate.title}"${duplicate.responsible_name ? ` (${duplicate.responsible_name})` : ""}` });
       return;
     }
 
     setErrors({});
-    setSaving(true);
-
     const supabase = createClient();
     const postData = {
       title: title.trim(),
@@ -432,14 +459,24 @@ export default function ContentForm({
         // Previously discarded, so a write the database refused looked like a
         // successful save and the edit vanished on the next page load.
         setSaving(false);
-        setErrors({ form: error.message });
+      setPendingAction(null);
+        setPendingAction(null);
+    setPendingAction(null);
+        // Raw PostgREST prose ("new row violates row-level security policy
+        // for table...") is not something to show a volunteer in Spanish.
+        setErrors({ form: L.saveFailed });
+        console.error("content_posts update failed:", error);
         return;
       }
     } else {
       const { data, error } = await supabase.from("content_posts").insert(postData).select("id").single();
       if (error || !data) {
         setSaving(false);
-        setErrors({ form: error?.message ?? L.saveFailed });
+      setPendingAction(null);
+        setPendingAction(null);
+    setPendingAction(null);
+        setErrors({ form: L.saveFailed });
+        if (error) console.error("content_posts insert failed:", error);
         return;
       }
       postId = data.id;
@@ -490,7 +527,11 @@ export default function ContentForm({
     }
 
     setSaving(false);
-    companionReact("celebrate");
+    setPendingAction(null);
+    // Only a submission is a moment. Peko used to celebrate every save -
+    // including the quiet one a volunteer makes right after reading that
+    // their idea was rejected.
+    if (submitForReview) companionReact("celebrate");
     // Marking a notification read happened on THIS page's own load, before any
     // of the above — but Next's client-side router cache can still hand the
     // destination a stale copy of the shared layout (and the bell's count in
@@ -502,7 +543,7 @@ export default function ContentForm({
   const headlineWordCount = reelHeadline.trim() ? reelHeadline.trim().split(/\s+/).length : 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.pageTitle}</h1>
 
       {(isSettled || !isLead || isAdminView) && (
@@ -514,7 +555,7 @@ export default function ContentForm({
         </div>
       )}
 
-      <div className="rounded-2xl p-6 shadow-koco space-y-5" style={{ backgroundColor: "#F8F0DE" }}>
+      <div className="rounded-2xl p-6 shadow-koco space-y-5" style={{ backgroundColor: "#FDFAF3" }}>
         {/* Title — checks for duplicates when the field loses focus */}
         <Field label={L.title} required error={errors.title}>
           <Input
@@ -526,7 +567,7 @@ export default function ContentForm({
         </Field>
 
         {checkingSimilar && (
-          <p className="text-xs" style={{ color: "#888" }}>{L.checking}</p>
+          <p className="text-xs" style={{ color: "#6B6258" }}>{L.checking}</p>
         )}
 
         {/* Similar ideas panel — informational, appears when matches exist */}
@@ -551,34 +592,45 @@ export default function ContentForm({
         {/* Format + Channel row */}
         <div className="grid grid-cols-2 gap-4">
           <Field label={L.format} required error={errors.format}>
-            <Select value={format} onChange={setFormat} hasError={!!errors.format}>
-              <option value="">{L.select}</option>
-              {FORMATS.map((f) => <option key={f.value} value={f.value}>{f[locale]}</option>)}
-            </Select>
+            <Select
+              ariaLabel={L.format}
+              value={format}
+              onChange={setFormat}
+              hasError={!!errors.format}
+              placeholder={L.select}
+              options={FORMATS.map((f) => ({ value: f.value, label: f[locale] }))}
+            />
           </Field>
           <Field label={L.channel} required error={errors.channel}>
-            <Select value={channel} onChange={setChannel} hasError={!!errors.channel}>
-              <option value="">{L.select}</option>
-              {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c[locale]}</option>)}
-            </Select>
+            <Select
+              ariaLabel={L.channel}
+              value={channel}
+              onChange={setChannel}
+              hasError={!!errors.channel}
+              placeholder={L.select}
+              options={CHANNELS.map((c) => ({ value: c.value, label: c[locale] }))}
+            />
           </Field>
         </div>
 
         {/* Content type */}
         <Field label={L.type}>
-          <Select value={contentType} onChange={setContentType}>
-            <option value="">{L.select}</option>
-            {CONTENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t[locale]}</option>)}
-          </Select>
+          <Select
+            ariaLabel={L.type}
+            value={contentType}
+            onChange={setContentType}
+            placeholder={L.select}
+            options={CONTENT_TYPES.map((t) => ({ value: t.value, label: t[locale] }))}
+          />
         </Field>
 
         {/* Co-authors — create form only; afterwards the post page owns this */}
         {!post && (
           <Field label={L.coAuthors}>
-            <p className="text-xs mb-2" style={{ color: "#6B6258" }}>{L.coAuthorsHint}</p>
+            <p className="text-xs mb-2 measure" style={{ color: "#6B6258" }}>{L.coAuthorsHint}</p>
             <div className="flex flex-wrap gap-2 mb-2">
               {coAuthors.length === 0 && (
-                <span className="text-xs" style={{ color: "#9A8F84" }}>{L.coAuthorsNone}</span>
+                <span className="text-xs" style={{ color: "#6B6258" }}>{L.coAuthorsNone}</span>
               )}
               {coAuthors.map((id) => {
                 const person = roster.find((r) => r.id === id);
@@ -586,7 +638,7 @@ export default function ContentForm({
                   <span
                     key={id}
                     className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full"
-                    style={{ backgroundColor: "#FFFFFF", border: "1.5px solid #E8DCCF", color: "#1C1C1C" }}
+                    style={{ backgroundColor: "#FFFFFF", border: "1.5px solid #EFE6D9", color: "#1C1C1C" }}
                   >
                     {person?.name ?? id}
                     <button
@@ -594,7 +646,7 @@ export default function ContentForm({
                       onClick={() => setCoAuthors(coAuthors.filter((c) => c !== id))}
                       aria-label={`${L.coAuthors}: ${person?.name ?? id}`}
                       className="ml-0.5 leading-none"
-                      style={{ color: "#B0A79C", fontSize: 14 }}
+                      style={{ color: "#6B6258", fontSize: 14 }}
                     >
                       ×
                     </button>
@@ -603,14 +655,14 @@ export default function ContentForm({
               })}
             </div>
             <Select
+              ariaLabel={L.addCoAuthor}
               value=""
               onChange={(v) => { if (v) setCoAuthors([...coAuthors, v]); }}
-            >
-              <option value="">{L.addCoAuthor}</option>
-              {roster
+              placeholder={L.addCoAuthor}
+              options={roster
                 .filter((r) => !coAuthors.includes(r.id))
-                .map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </Select>
+                .map((r) => ({ value: r.id, label: r.name }))}
+            />
           </Field>
         )}
 
@@ -619,18 +671,21 @@ export default function ContentForm({
           <Field label={L.cycle} error={errors.cycleId}>
             {/* Disabled on a settled post: guard_volunteer_edits would refuse
                 the write, so offering the control would only produce an error. */}
-            <Select value={cycleId} onChange={setCycleId} hasError={!!errors.cycleId} disabled={!canMoveStatus}>
-              <option value="">{L.select}</option>
-              {cycles.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label ?? (locale === "es" ? `Ciclo ${c.cycle_number}` : locale === "ko" ? `${c.cycle_number}회차` : `Cycle ${c.cycle_number}`)}
-                  {c.final_deadline ? ` (${c.final_deadline})` : ""}
-                </option>
-              ))}
-            </Select>
+            <Select
+              value={cycleId}
+              onChange={setCycleId}
+              hasError={!!errors.cycleId}
+              disabled={!canMoveStatus}
+              placeholder={L.select}
+              options={cycles.map((c) => ({
+                value: c.id,
+                label: c.label ?? (locale === "es" ? `Ciclo ${c.cycle_number}` : locale === "ko" ? `${c.cycle_number}회차` : `Cycle ${c.cycle_number}`),
+                hint: c.final_deadline ?? undefined,
+              }))}
+            />
           </Field>
           <Field label={L.pubDate} error={errors.pubDate}>
-            <Input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} hasError={!!errors.pubDate} disabled={!canMoveStatus} />
+            <GlassDatePicker ariaLabel={L.pubDate} value={pubDate} onChange={setPubDate} hasError={!!errors.pubDate} disabled={!canMoveStatus} />
           </Field>
         </div>
 
@@ -658,7 +713,7 @@ export default function ContentForm({
             rows={4}
             hasError={!!errors.script}
           />
-          <p className="text-xs mt-1" style={{ color: script.length >= 80 ? "#38B39E" : "#AAA" }}>
+          <p className="text-xs mt-1" style={{ color: script.length >= 80 ? "#38B39E" : "#6B6258" }}>
             {script.length}/80
           </p>
         </Field>
@@ -673,7 +728,7 @@ export default function ContentForm({
           />
           <p
             className="text-xs mt-1"
-            style={{ color: hashtags.trim().split(/\s+/).filter(Boolean).length > 3 ? "#E2693E" : "#AAA" }}
+            style={{ color: hashtags.trim().split(/\s+/).filter(Boolean).length > 3 ? "#E2693E" : "#6B6258" }}
           >
             {hashtags.trim() ? hashtags.trim().split(/\s+/).filter(Boolean).length : 0}/3
           </p>
@@ -682,8 +737,8 @@ export default function ContentForm({
 
       {/* ── Reel Specs ────────────────────────────────────────── */}
       {showReelChecklist && (
-        <div className="rounded-2xl p-6 shadow-koco space-y-4" style={{ backgroundColor: "#F8F0DE", borderLeft: "4px solid #38B39E" }}>
-          <h2 className="text-base font-bold" style={{ color: "#38B39E" }}>{L.reelSection}</h2>
+        <div className="rounded-2xl p-6 shadow-koco space-y-4" style={{ backgroundColor: "#FDFAF3", border: "1px solid rgba(56,179,158,0.35)" }}>
+          <h2 className="text-base font-bold" style={{ color: "#1F7A6E" }}>{L.reelSection}</h2>
 
           <Field label={L.duration} required error={errors.reelDuration}>
             <Input
@@ -706,7 +761,7 @@ export default function ContentForm({
             ].map(({ key, state, set, label }) => (
               <div key={key}>
                 <Checkbox checked={state} onChange={set} label={label} />
-                {errors[key] && <p className="text-xs ml-7 mt-0.5" style={{ color: "#E2693E" }}>{errors[key]}</p>}
+                {errors[key] && <p className="text-xs ml-7 mt-0.5" style={{ color: "#8C3010" }}>{errors[key]}</p>}
               </div>
             ))}
 
@@ -725,7 +780,7 @@ export default function ContentForm({
             ].map(({ key, state, set, label }) => (
               <div key={key}>
                 <Checkbox checked={state} onChange={set} label={label} />
-                {errors[key] && <p className="text-xs ml-7 mt-0.5" style={{ color: "#E2693E" }}>{errors[key]}</p>}
+                {errors[key] && <p className="text-xs ml-7 mt-0.5" style={{ color: "#8C3010" }}>{errors[key]}</p>}
               </div>
             ))}
 
@@ -734,7 +789,7 @@ export default function ContentForm({
               <div className="ml-7">
                 <Field label={L.headline} required error={errors.reelHeadline}>
                   <Input value={reelHeadline} onChange={(e) => setReelHeadline(e.target.value)} hasError={!!errors.reelHeadline} />
-                  <p className="text-xs mt-1" style={{ color: headlineWordCount > 6 ? "#E2693E" : "#AAA" }}>
+                  <p className="text-xs mt-1" style={{ color: headlineWordCount > 6 ? "#E2693E" : "#6B6258" }}>
                     {headlineWordCount}/6 {locale === "es" ? "palabras" : "words"}
                   </p>
                 </Field>
@@ -748,36 +803,42 @@ export default function ContentForm({
         </div>
       )}
 
-      {/* ── Action buttons ──────────────────────────────────────── */}
-      <div className="flex gap-3">
-        <button
+      {/* ── Action buttons ──────────────────────────────────────────
+          One shared Button, so these match the review queue and the review
+          panel instead of being a third dialect (they were a 2px teal outline
+          beside an orange fill, at a size used nowhere else).
+
+          Order is deliberate: saving is the lesser action and sits left;
+          submitting is the primary and sits under the writing hand. */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Button
+          variant={canMoveStatus ? "secondary" : "primary"}
+          size="lg"
           onClick={() => save(false)}
+          loading={saving && pendingAction === "save"}
+          loadingLabel={L.saving}
           disabled={saving}
-          className="flex-1 py-3 rounded-lg font-bold text-sm btn-hover"
-          style={
-            canMoveStatus
-              ? { backgroundColor: "transparent", border: "2px solid #38B39E", color: "#38B39E" }
-              : { backgroundColor: "#ECA040", color: "#FFFFFF" }
-          }
         >
-          {saving ? L.saving : canMoveStatus ? L.saveDraft : L.saveChanges}
-        </button>
+          {canMoveStatus ? L.saveDraft : L.saveChanges}
+        </Button>
         {/* Nothing to submit on a decided post, and a collaborator does not
             decide when shared work goes to review — the lead does. */}
         {canMoveStatus && (
-          <button
+          <Button
+            variant="primary"
+            size="lg"
             onClick={() => save(true)}
+            loading={saving && pendingAction === "submit"}
+            loadingLabel={L.saving}
             disabled={saving}
-            className="flex-1 py-3 rounded-lg font-bold text-sm text-white btn-hover"
-            style={{ backgroundColor: "#ECA040" }}
           >
-            {saving ? L.saving : L.submit}
-          </button>
+            {L.submit}
+          </Button>
         )}
       </div>
 
       {errors.form && (
-        <p className="text-sm text-center" style={{ color: "#E2693E" }}>{errors.form}</p>
+        <p role="alert" className="text-sm font-medium" style={{ color: "#8C3010" }}>{errors.form}</p>
       )}
     </div>
   );

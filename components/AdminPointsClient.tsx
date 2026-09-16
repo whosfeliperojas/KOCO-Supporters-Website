@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import { COMPLETION_TARGET_POINTS } from "@/lib/points";
+import GlassSelect from "@/components/glass/GlassSelect";
+import GlassDatePicker from "@/components/glass/GlassDatePicker";
+import Button from "@/components/ui/Button";
 
 type Group     = { id: string; code: string; name: string };
 type Volunteer = { id: string; full_name: string; group_id: string | null };
@@ -49,9 +52,23 @@ export default function AdminPointsClient({
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Which volunteer the *views* below are narrowed to - separate from
+  // volunteerId, which is who the form is about to award points to. Picking
+  // someone to look at should not silently pre-fill who gets the next award.
+  const [viewVolunteerId, setViewVolunteerId] = useState("");
+
   const groupVolunteers = volunteers.filter((v) => v.group_id === groupId);
   const groupCriteria = criteria.filter((c) => c.group_id === groupId || c.group_id === null);
   const groupEntries = entries.filter((e) => groupVolunteers.some((v) => v.id === e.volunteer_id));
+
+  // The group toggle answers "which programme"; this answers "whose record".
+  // Both narrow the recent entries and the roster below.
+  const shownVolunteers = viewVolunteerId
+    ? groupVolunteers.filter((v) => v.id === viewVolunteerId)
+    : groupVolunteers;
+  const shownEntries = viewVolunteerId
+    ? groupEntries.filter((e) => e.volunteer_id === viewVolunteerId)
+    : groupEntries;
 
   const selectedCriteria = criteria.find((c) => c.id === criteriaId);
 
@@ -63,7 +80,8 @@ export default function AdminPointsClient({
       suggested: "Puntos sugeridos", noRecent: "Sin entradas recientes",
       group: "Grupo", editing: "Editando entrada", cancelEdit: "Cancelar edición",
       update: "Actualizar", updating: "Actualizando...", updated: "¡Actualizado!",
-      summary: "Resumen por voluntario/a", toGo: "faltan {n} pts para llegar a 80",
+      summary: "Resumen por voluntario/a", allVolunteers: "Todo el grupo",
+      failed: "No se pudo registrar. Revisa tu conexión e inténtalo de nuevo.", toGo: "faltan {n} pts para llegar a 80",
       met: "¡Requisito cumplido! Sigue sumando puntos extra",
       clickToEdit: "Toca una entrada para editarla",
     },
@@ -74,7 +92,8 @@ export default function AdminPointsClient({
       suggested: "Suggested points", noRecent: "No recent entries",
       group: "Group", editing: "Editing entry", cancelEdit: "Cancel edit",
       update: "Update", updating: "Updating...", updated: "Updated!",
-      summary: "Summary by volunteer", toGo: "{n} pts to go to reach 80",
+      summary: "Summary by volunteer", allVolunteers: "Whole group",
+      failed: "Couldn’t log it. Check your connection and try again.", toGo: "{n} pts to go to reach 80",
       met: "Completion requirement met! Keep earning extra points",
       clickToEdit: "Click an entry to edit it",
     },
@@ -85,7 +104,8 @@ export default function AdminPointsClient({
       suggested: "기본 포인트", noRecent: "최근 내역이 없어요",
       group: "그룹", editing: "항목 수정 중", cancelEdit: "수정 취소",
       update: "수정하기", updating: "수정 중...", updated: "수정 완료!",
-      summary: "서포터즈별 요약", toGo: "80점까지 {n}점 남았어요",
+      summary: "서포터즈별 요약", allVolunteers: "그룹 전체",
+      failed: "등록하지 못했어요. 연결을 확인하고 다시 시도해 주세요.", toGo: "80점까지 {n}점 남았어요",
       met: "이수 조건을 달성했어요! 추가 포인트는 계속 쌓을 수 있어요",
       clickToEdit: "항목을 눌러서 수정할 수 있어요",
     },
@@ -102,6 +122,7 @@ export default function AdminPointsClient({
 
   function onGroupChange(id: string) {
     setGroupId(id);
+    setViewVolunteerId("");
     resetForm();
   }
 
@@ -140,13 +161,19 @@ export default function AdminPointsClient({
       notes: notes.trim(),
     };
 
-    if (editingId) {
-      await supabase.from("point_log_entries").update(payload).eq("id", editingId);
-    } else {
-      await supabase.from("point_log_entries").insert({ ...payload, recorded_by: adminId });
-    }
+    const { error } = editingId
+      ? await supabase.from("point_log_entries").update(payload).eq("id", editingId)
+      : await supabase.from("point_log_entries").insert({ ...payload, recorded_by: adminId });
 
     setSaving(false);
+    if (error) {
+      // This used to fall straight through to "¡Registrado!", the celebration
+      // and resetForm() - so a refused write looked like a success AND threw
+      // away everything the admin had typed.
+      console.error("point_log_entries write failed:", error);
+      setErrors({ form: L.failed });
+      return;
+    }
     setSuccess(true);
     companionReact("celebrate");
     resetForm();
@@ -156,7 +183,7 @@ export default function AdminPointsClient({
 
   function inputStyle(key: string) {
     return {
-      backgroundColor: "#F8F0DE",
+      backgroundColor: "#FDFAF3",
       border: `1.5px solid ${errors[key] ? "#E2693E" : "#DDD0C4"}`,
       color: "#1C1C1C",
     };
@@ -168,9 +195,25 @@ export default function AdminPointsClient({
   for (const e of entries) totalsByVolunteer[e.volunteer_id] = (totalsByVolunteer[e.volunteer_id] ?? 0) + e.points_earned;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 anim-in" style={{ "--i": 0 } as React.CSSProperties}>
         <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.title}</h1>
+
+        <div className="flex flex-wrap items-center gap-3">
+        {/* One volunteer's record, rather than the whole group's. Sits beside
+            the group toggle because the two answer the same kind of question
+            and narrow the same two lists. */}
+        <GlassSelect
+          variant="pill"
+          ariaLabel={L.volunteer}
+          value={viewVolunteerId}
+          onChange={setViewVolunteerId}
+          active={!!viewVolunteerId}
+          options={[
+            { value: "", label: L.allVolunteers },
+            ...groupVolunteers.map((v) => ({ value: v.id, label: v.full_name })),
+          ]}
+        />
 
         {/* Group toggle — scopes volunteers, criteria, roster and recent entries */}
         {groups.length > 1 && (
@@ -198,19 +241,20 @@ export default function AdminPointsClient({
                 role="radio"
                 aria-checked={groupId === g.id}
                 onClick={() => onGroupChange(g.id)}
-                className="relative z-10 py-1.5 text-xs font-bold rounded-full text-center transition-colors"
-                style={{ color: groupId === g.id ? "#FFFFFF" : "#38B39E", transitionDuration: "200ms" }}
+                className="relative z-10 py-2.5 text-xs font-bold rounded-full text-center transition-colors"
+                style={{ color: groupId === g.id ? "#0E3F37" : "#1F7A6E", transitionDuration: "200ms" }}
               >
                 {g.code}
               </button>
             ))}
           </div>
         )}
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Form */}
-        <div className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
+        <div className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 1 } as React.CSSProperties}>
           {editingId && (
             <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: "rgba(236,160,64,0.14)" }}>
               <span className="text-xs font-bold" style={{ color: "#B07A1A" }}>{L.editing}</span>
@@ -223,73 +267,73 @@ export default function AdminPointsClient({
           {/* Volunteer */}
           <div className="space-y-1">
             <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>
-              {L.volunteer} <span style={{ color: "#38B39E" }}>*</span>
+              {L.volunteer} <span style={{ color: "#1F7A6E" }}>*</span>
             </label>
-            <select
+            <GlassSelect
+              ariaLabel={L.volunteer}
               value={volunteerId}
-              onChange={(e) => { setVolunteerId(e.target.value); setCriteriaId(""); }}
-              className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
-              style={inputStyle("volunteerId")}
-            >
-              <option value="">{L.select}</option>
-              {groupVolunteers.map((v) => <option key={v.id} value={v.id}>{v.full_name}</option>)}
-            </select>
-            {errors.volunteerId && <p className="text-xs" style={{ color: "#E2693E" }}>{errors.volunteerId}</p>}
+              onChange={(v) => { setVolunteerId(v); setCriteriaId(""); }}
+              hasError={!!errors.volunteerId}
+              placeholder={L.select}
+              options={groupVolunteers.map((v) => ({ value: v.id, label: v.full_name }))}
+            />
+            {errors.volunteerId && <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{errors.volunteerId}</p>}
           </div>
 
           {/* Criteria */}
           <div className="space-y-1">
             <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>
-              {L.criteria} <span style={{ color: "#38B39E" }}>*</span>
+              {L.criteria} <span style={{ color: "#1F7A6E" }}>*</span>
             </label>
-            <select
+            <GlassSelect
+              ariaLabel={L.criteria}
               value={criteriaId}
-              onChange={(e) => {
-                setCriteriaId(e.target.value);
-                const c = criteria.find((c) => c.id === e.target.value);
+              onChange={(v) => {
+                setCriteriaId(v);
+                const c = criteria.find((c) => c.id === v);
                 if (c) setPoints(c.points_per_unit);
               }}
-              className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
-              style={inputStyle("criteriaId")}
-            >
-              <option value="">{L.select}</option>
-              {groupCriteria.map((c) => (
-                <option key={c.id} value={c.id}>
-                  [{c.type === "core" ? "Core" : "Extra"}] {c.category} ({c.points_per_unit} pts)
-                </option>
-              ))}
-            </select>
+              hasError={!!errors.criteriaId}
+              placeholder={L.select}
+              panelMinWidth={300}
+              options={groupCriteria.map((c) => ({
+                value: c.id,
+                label: `[${c.type === "core" ? "Core" : "Extra"}] ${c.category}`,
+                hint: `${c.points_per_unit} pts`,
+              }))}
+            />
             {selectedCriteria && (
-              <p className="text-xs" style={{ color: "#38B39E" }}>
+              <p className="text-xs" style={{ color: "#1F7A6E" }}>
                 {L.suggested}: {selectedCriteria.points_per_unit} pts
                 {(() => {
                   const d = locale === "es"
                     ? (selectedCriteria.description_es ?? selectedCriteria.description_en)
                     : (selectedCriteria.description_en ?? selectedCriteria.description_es);
-                  return d ? <span style={{ color: "#75695C" }}> · {d}</span> : null;
+                  return d ? <span style={{ color: "#6B6258" }}> · {d}</span> : null;
                 })()}
               </p>
             )}
-            {errors.criteriaId && <p className="text-xs" style={{ color: "#E2693E" }}>{errors.criteriaId}</p>}
+            {errors.criteriaId && <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{errors.criteriaId}</p>}
           </div>
 
           {/* Date + Points row */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>
-                {L.date} <span style={{ color: "#38B39E" }}>*</span>
+                {L.date} <span style={{ color: "#1F7A6E" }}>*</span>
               </label>
-              <input
-                type="date"
+              <GlassDatePicker
+                ariaLabel={L.date}
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
-                style={inputStyle("date")}
+                onChange={setDate}
+                hasError={!!errors.date}
+                required
               />
+              {errors.date && <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{errors.date}</p>}
             </div>
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>
-                {L.points} <span style={{ color: "#38B39E" }}>*</span>
+                {L.points} <span style={{ color: "#1F7A6E" }}>*</span>
               </label>
               <input
                 type="number"
@@ -300,14 +344,14 @@ export default function AdminPointsClient({
                 className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
                 style={inputStyle("points")}
               />
-              {errors.points && <p className="text-xs" style={{ color: "#E2693E" }}>{errors.points}</p>}
+              {errors.points && <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{errors.points}</p>}
             </div>
           </div>
 
           {/* Notes — mandatory, keeps a record of the reason for every point */}
           <div className="space-y-1">
             <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>
-              {L.notes} <span style={{ color: "#38B39E" }}>*</span>
+              {L.notes} <span style={{ color: "#1F7A6E" }}>*</span>
             </label>
             <input
               type="text"
@@ -316,18 +360,20 @@ export default function AdminPointsClient({
               className="w-full px-3 py-2.5 text-sm rounded-lg outline-none"
               style={inputStyle("notes")}
             />
-            {errors.notes && <p className="text-xs" style={{ color: "#E2693E" }}>{errors.notes}</p>}
+            {errors.notes && <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{errors.notes}</p>}
           </div>
 
-          <button
+          {errors.form && (
+            <p role="alert" className="text-sm font-medium" style={{ color: "#8C3010" }}>{errors.form}</p>
+          )}
+
+          <Button
+            variant={success ? "confirm" : "primary"}
+            size="lg"
             onClick={handleSave}
+            loading={saving}
+            loadingLabel={editingId ? L.updating : L.saving}
             disabled={saving}
-            className="w-full py-3 rounded-lg font-bold text-sm text-white btn-hover"
-            style={{
-              backgroundColor: success ? "#38B39E" : "#ECA040",
-              opacity: saving ? 0.7 : 1,
-              transition: "background-color 0.2s var(--ease-out-quart)",
-            }}
           >
             <span key={success ? "ok" : "idle"} className={success ? "anim-pop inline-block" : undefined}>
               {success
@@ -336,32 +382,32 @@ export default function AdminPointsClient({
                 ? (editingId ? L.updating : L.saving)
                 : (editingId ? L.update : L.save)}
             </span>
-          </button>
+          </Button>
         </div>
 
         {/* Recent entries — click to edit */}
         <div className="space-y-3 anim-in" style={{ "--i": 1 } as React.CSSProperties}>
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{L.recent}</h2>
-            <span className="text-xs" style={{ color: "#AAA" }}>{L.clickToEdit}</span>
+            <span className="text-xs" style={{ color: "#6B6258" }}>{L.clickToEdit}</span>
           </div>
-          <div className="rounded-2xl overflow-hidden shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
-            {groupEntries.length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: "#888" }}>{L.noRecent}</p>
+          <div className="rounded-2xl overflow-hidden shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
+            {shownEntries.length === 0 ? (
+              <p className="text-sm text-center py-8" style={{ color: "#6B6258" }}>{L.noRecent}</p>
             ) : (
-              <div className="divide-y" style={{ borderColor: "#E8DCCF" }}>
-                {groupEntries.slice(0, 12).map((e, i) => (
+              <div className="divide-y" style={{ borderColor: "#EFE6D9" }}>
+                {shownEntries.slice(0, 12).map((e, i) => (
                   <button
                     key={e.id}
                     onClick={() => startEdit(e)}
                     className="w-full flex items-start justify-between px-4 py-3 text-left transition-colors hover:bg-koco-blush/30"
-                    style={{ backgroundColor: editingId === e.id ? "rgba(236,160,64,0.14)" : i % 2 === 0 ? "#FFFFFF" : "#F8F0DE" }}
+                    style={{ backgroundColor: editingId === e.id ? "rgba(236,160,64,0.14)" : i % 2 === 0 ? "#FFFFFF" : "#FDFAF3" }}
                   >
                     <div className="flex-1 min-w-0 mr-2">
                       <p className="text-xs font-medium truncate" style={{ color: "#1C1C1C" }}>
                         {volName(e.volunteer_id)}
                       </p>
-                      <p className="text-xs truncate" style={{ color: "#888" }}>
+                      <p className="text-xs truncate" style={{ color: "#6B6258" }}>
                         {e.criteria?.category ?? "—"} · {e.date ?? "—"}
                       </p>
                       {(() => {
@@ -370,11 +416,11 @@ export default function AdminPointsClient({
                           : (e.criteria?.description_en ?? e.criteria?.description_es);
                         const reason = [d, e.notes].filter(Boolean).join(" — ");
                         return reason ? (
-                          <p className="text-xs mt-0.5" style={{ color: "#75695C" }}>{reason}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>{reason}</p>
                         ) : null;
                       })()}
                     </div>
-                    <span className="text-sm font-bold shrink-0" style={{ color: "#CDD909" }}>
+                    <span className="text-sm font-bold shrink-0" style={{ color: "#6E7A00" }}>
                       +{e.points_earned}
                     </span>
                   </button>
@@ -388,29 +434,39 @@ export default function AdminPointsClient({
       {/* Roster — progress toward the 80-point completion milestone, per volunteer */}
       <section className="anim-in space-y-3" style={{ "--i": 2 } as React.CSSProperties}>
         <h2 className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{L.summary}</h2>
-        <div className="rounded-2xl overflow-hidden shadow-koco divide-y" style={{ backgroundColor: "#F8F0DE", borderColor: "#E8DCCF" }}>
-          {groupVolunteers.map((v, i) => {
+        <div className="rounded-2xl overflow-hidden shadow-koco divide-y" style={{ backgroundColor: "#FDFAF3", borderColor: "#EFE6D9" }}>
+          {shownVolunteers.map((v, i) => {
             const total = totalsByVolunteer[v.id] ?? 0;
             const met = total >= COMPLETION_TARGET_POINTS;
             const pct = Math.min(100, (total / COMPLETION_TARGET_POINTS) * 100);
             return (
-              <div key={v.id} className="flex items-center gap-4 px-4 py-3" style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#F8F0DE" }}>
+              <div key={v.id} className="flex items-center gap-4 px-4 py-3" style={{ backgroundColor: i % 2 === 0 ? "#FFFFFF" : "#FDFAF3" }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>{v.full_name}</p>
-                    <p className="text-sm font-bold shrink-0" style={{ color: "#CDD909" }}>{total} pts</p>
+                    <p className="text-sm font-bold shrink-0" style={{ color: "#6E7A00" }}>{total} pts</p>
                   </div>
-                  <div className="h-1.5 rounded-full overflow-hidden mt-1.5" style={{ backgroundColor: "rgba(0,0,0,0.06)" }}>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={Math.round(total)}
+                    aria-valuemin={0}
+                    aria-valuemax={COMPLETION_TARGET_POINTS}
+                    aria-label={v.full_name}
+                    className="h-1.5 rounded-full overflow-hidden mt-1.5"
+                    style={{ backgroundColor: "#EFE6D9" }}
+                  >
                     <div
                       style={{
-                        width: `${pct}%`,
+                        width: "100%",
                         height: "100%",
+                        transformOrigin: "left center",
+                        transform: `scaleX(${pct / 100})`,
                         backgroundColor: met ? "#38B39E" : "#CDD909",
-                        transition: "width 400ms var(--ease-out-quart)",
+                        transition: "transform 400ms var(--ease-out-quart)",
                       }}
                     />
                   </div>
-                  <p className="text-xs mt-1" style={{ color: met ? "#1F7A6E" : "#888" }}>
+                  <p className="text-xs mt-1" style={{ color: met ? "#1F7A6E" : "#6B6258" }}>
                     {met ? L.met : toGoText(Math.ceil(COMPLETION_TARGET_POINTS - total))}
                   </p>
                 </div>

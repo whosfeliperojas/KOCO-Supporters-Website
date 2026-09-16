@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
+import Button from "@/components/ui/Button";
 
 export type PendingPost = {
   id: string;
@@ -41,6 +42,7 @@ const T = {
     dupCheck: "Revísalo antes de decidir: puede ser el mismo contenido cargado dos veces.",
     working: "Guardando...",
     failed: "No se pudo guardar. Intenta de nuevo.",
+    rejectSure: "¿Seguro?", rejectYes: "Sí, rechazar", rejectNo: "No",
   },
   en: {
     heading: "To review",
@@ -58,6 +60,7 @@ const T = {
     dupCheck: "Check before deciding — it may be the same content entered twice.",
     working: "Saving...",
     failed: "Couldn't save. Try again.",
+    rejectSure: "Sure?", rejectYes: "Yes, reject", rejectNo: "No",
   },
   ko: {
     heading: "검토 대기",
@@ -75,6 +78,7 @@ const T = {
     dupCheck: "결정하기 전에 확인해 주세요. 같은 콘텐츠가 두 번 등록됐을 수 있어요.",
     working: "저장 중...",
     failed: "저장하지 못했어요. 다시 시도해 주세요.",
+    rejectSure: "정말요?", rejectYes: "네, 반려할게요", rejectNo: "아니요",
   },
 } as const;
 
@@ -96,7 +100,12 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  // Reject is the one decision here that is not casually reversible and the
+  // row disappears the moment it is pressed, so it asks once first.
+  const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
+  /** Which decision is in flight, so only that button spins. */
+  const [pendingKind, setPendingKind] = useState<"approved" | "in_progress" | "rejected" | null>(null);
   // Removed the instant a decision is made, before the network round-trip even
   // resolves. Without this, an admin's click sat there through a full
   // request + router.refresh() before the item finally vanished — correct,
@@ -107,7 +116,8 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
 
   async function decide(post: PendingPost, next: "approved" | "in_progress" | "rejected") {
     setBusyId(post.id);
-    setFailed(false);
+    setPendingKind(next);
+    setFailed(null);
     setDecidedIds((prev) => new Set(prev).add(post.id));
 
     const note = (notes[post.id] ?? "").trim();
@@ -126,7 +136,7 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
 
     setBusyId(null);
     if (error) {
-      setFailed(true);
+      setFailed(post.id);
       // The write failed — put it back rather than leaving it looking decided.
       setDecidedIds((prev) => {
         const next = new Set(prev);
@@ -174,7 +184,7 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
             <Link
               href={`/content/${p.id}`}
               className="text-xs font-bold underline shrink-0"
-              style={{ color: "#38B39E" }}
+              style={{ color: "#1F7A6E" }}
             >
               {L.open} →
             </Link>
@@ -202,49 +212,77 @@ export default function ReviewQueue({ posts }: { posts: PendingPost[] }) {
               onChange={(e) => setNotes({ ...notes, [p.id]: e.target.value })}
               placeholder={L.notePlaceholder}
               className="w-full px-3 py-2 text-sm rounded-lg outline-none resize-none"
-              style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+              style={{ backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
             />
           </div>
 
+          {/* Same decision as the review panel inside the post, so it uses the
+              same buttons: one confirm, a quiet middle option, and the
+              destructive path outlined and pushed to the far end. It used to
+              be three tinted pills of equal weight with reject next to the
+              thumb. */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
+            <Button
+              variant="confirm"
+              size="md"
               onClick={() => decide(p, "approved")}
+              loading={busyId === p.id && pendingKind === "approved"}
+              loadingLabel={L.working}
               disabled={busyId === p.id}
-              className="text-xs font-bold px-3 py-2 rounded-lg text-white btn-hover"
-              style={{ backgroundColor: "#38B39E", opacity: busyId === p.id ? 0.6 : 1 }}
             >
-              {busyId === p.id ? L.working : L.approve}
-            </button>
-            <button
-              onClick={() => decide(p, "in_progress")}
-              disabled={busyId === p.id}
+              {L.approve}
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
               title={L.changesHint}
-              className="text-xs font-bold px-3 py-2 rounded-lg btn-hover"
-              style={{
-                backgroundColor: "rgba(236,160,64,0.15)",
-                color: "#B07A1A",
-                opacity: busyId === p.id ? 0.6 : 1,
-              }}
+              onClick={() => decide(p, "in_progress")}
+              loading={busyId === p.id && pendingKind === "in_progress"}
+              loadingLabel={L.working}
+              disabled={busyId === p.id}
             >
               {L.changes}
-            </button>
-            <button
-              onClick={() => decide(p, "rejected")}
-              disabled={busyId === p.id}
-              className="text-xs font-bold px-3 py-2 rounded-lg btn-hover"
-              style={{
-                backgroundColor: "rgba(226,105,62,0.12)",
-                color: "#E2693E",
-                opacity: busyId === p.id ? 0.6 : 1,
-              }}
-            >
-              {L.reject}
-            </button>
+            </Button>
+
+            <span className="ml-auto flex items-center gap-2">
+              {confirmRejectId === p.id ? (
+                <>
+                  <span className="text-xs font-medium" style={{ color: "#8C3010" }}>{L.rejectSure}</span>
+                  <Button
+                    variant="destructive"
+                    size="md"
+                    onClick={() => { setConfirmRejectId(null); decide(p, "rejected"); }}
+                    loading={busyId === p.id && pendingKind === "rejected"}
+                    loadingLabel={L.working}
+                    disabled={busyId === p.id}
+                  >
+                    {L.rejectYes}
+                  </Button>
+                  <Button variant="ghost" size="md" onClick={() => setConfirmRejectId(null)} disabled={busyId === p.id}>
+                    {L.rejectNo}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="destructive"
+                  size="md"
+                  onClick={() => setConfirmRejectId(p.id)}
+                  disabled={busyId === p.id}
+                >
+                  {L.reject}
+                </Button>
+              )}
+            </span>
           </div>
+
+          {/* Keyed to the post: one shared boolean at the bottom of the
+              section could not say which of eight rows had failed. */}
+          {failed === p.id && (
+            <p role="alert" className="text-xs font-medium" style={{ color: "#8C3010" }}>{L.failed}</p>
+          )}
         </div>
       ))}
 
-      {failed && <p className="text-xs" style={{ color: "#8C3010" }}>{L.failed}</p>}
     </section>
   );
 }

@@ -84,7 +84,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#F2E8D5" }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#F6F0E4" }}>
       {/* Slide language switcher */}
       <div
         role="radiogroup"
@@ -148,7 +148,7 @@ export default function LoginPage() {
               style={{ width: 108, "--i": 2 } as React.CSSProperties}
             />
           </div>
-        <div className="relative rounded-2xl p-8 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 3 } as React.CSSProperties}>
+        <div className="relative rounded-2xl p-8 shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 3 } as React.CSSProperties}>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <h1 className="text-2xl font-bold mb-1" style={{ color: "#1C1C1C" }}>{tx.heading}</h1>
@@ -167,7 +167,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nombre@correo.com"
                 className="w-full px-4 py-2.5 text-sm rounded-lg outline-none"
-                style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                style={{ backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
               />
             </div>
 
@@ -182,13 +182,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2.5 text-sm rounded-lg outline-none"
-                style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                style={{ backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
               />
-              <p className="text-xs pt-1" style={{ color: "#888" }}>{tx.hint}</p>
+              <p className="text-xs pt-1" style={{ color: "#6B6258" }}>{tx.hint}</p>
             </div>
 
             {status === "error" && (
-              <p className="text-xs anim-pop" style={{ color: "#E2693E" }}>{tx.error}</p>
+              <p className="text-xs anim-pop" style={{ color: "#8C3010" }}>{tx.error}</p>
             )}
 
             <button
@@ -228,7 +228,7 @@ export default function LoginPage() {
           ))}
         </div>
 
-        <p className="text-center text-xs mt-4" style={{ color: "#888" }}>
+        <p className="text-center text-xs mt-4" style={{ color: "#6B6258" }}>
           KOICA Colombia · 2026
         </p>
       </div>

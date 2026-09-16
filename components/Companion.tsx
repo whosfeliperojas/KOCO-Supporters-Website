@@ -279,7 +279,7 @@ export default function Companion({ size = 148 }: { size?: number }) {
           <div className="anim-pop">
             <div
               className="px-3 py-1.5 rounded-xl text-center leading-snug"
-              style={{ backgroundColor: "#1C1C1C", color: "#F8F0DE", fontSize: 11.5, fontWeight: 500 }}
+              style={{ backgroundColor: "#1C1C1C", color: "#FDFAF3", fontSize: 11.5, fontWeight: 500 }}
             >
               {bubble}
             </div>
@@ -376,7 +376,7 @@ export default function Companion({ size = 148 }: { size?: number }) {
                     <span
                       key={i}
                       className="companion-zzz absolute font-bold"
-                      style={{ animationDelay: `${i * 0.9}s`, fontSize: 10 + i * 3, color: "#38B39E", left: i * 8 }}
+                      style={{ animationDelay: `${i * 0.9}s`, fontSize: 10 + i * 3, color: "#1F7A6E", left: i * 8 }}
                     >
                       z
                     </span>

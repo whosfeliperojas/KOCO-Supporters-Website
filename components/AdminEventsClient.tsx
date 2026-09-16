@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import EventStatusChip from "@/components/EventStatusChip";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import { DATE_LOCALE } from "@/lib/i18n";
 import EventAttendeesPanel, { type EventSignup } from "@/components/EventAttendeesPanel";
 import EventEditForm from "@/components/EventEditForm";
+import GlassDatePicker from "@/components/glass/GlassDatePicker";
+import GlassTimePicker from "@/components/glass/GlassTimePicker";
 
 type Event = {
   id: string;
@@ -58,7 +61,8 @@ export default function AdminEventsClient({
       regOpen: "Inscripciones abiertas",
       createBtn: "Crear evento", creating: "Creando...", created: "¡Evento creado!",
       required: "Nombre y fecha de inicio son obligatorios.",
-      existing: "Eventos existentes", spots: "cupos", noEvents: "Sin eventos aún", cancelledState: "Cancelado", rejectedState: "Rechazado", cancelBtn: "Cancelar evento", cancelConfirm: "Sí, cancelar", cancelAbort: "No", restoreBtn: "Reactivar evento",
+      actionFailed: "No se pudo completar la acción. Inténtalo de nuevo.",
+      existing: "Eventos existentes", spots: "cupos", noEvents: "Sin eventos aún", cancelBtn: "Cancelar evento", cancelConfirm: "Sí, cancelar", cancelAbort: "No", restoreBtn: "Reactivar evento",
       open: "Abierto", closed: "Cerrado", full: "Lleno",
       toggleClose: "Cerrar inscripciones", toggleOpen: "Abrir inscripciones",
       proposalsTitle: "Propuestas de voluntarios/as", proposedBy: "Propuesto por",
@@ -75,7 +79,8 @@ export default function AdminEventsClient({
       regOpen: "Registration open",
       createBtn: "Create event", creating: "Creating...", created: "Event created!",
       required: "Name and start date are required.",
-      existing: "Existing events", spots: "spots", noEvents: "No events yet", cancelledState: "Cancelled", rejectedState: "Rejected", cancelBtn: "Cancel event", cancelConfirm: "Yes, cancel", cancelAbort: "No", restoreBtn: "Restore event",
+      actionFailed: "Couldn’t complete that. Please try again.",
+      existing: "Existing events", spots: "spots", noEvents: "No events yet", cancelBtn: "Cancel event", cancelConfirm: "Yes, cancel", cancelAbort: "No", restoreBtn: "Restore event",
       open: "Open", closed: "Closed", full: "Full",
       toggleClose: "Close registration", toggleOpen: "Open registration",
       proposalsTitle: "Volunteer proposals", proposedBy: "Proposed by",
@@ -92,7 +97,8 @@ export default function AdminEventsClient({
       regOpen: "신청 받기",
       createBtn: "행사 만들기", creating: "만드는 중...", created: "행사를 만들었어요!",
       required: "이름과 시작일은 필수예요.",
-      existing: "등록된 행사", spots: "정원", noEvents: "아직 행사가 없어요", cancelledState: "취소됨", rejectedState: "반려됨", cancelBtn: "행사 취소", cancelConfirm: "네, 취소할게요", cancelAbort: "아니요", restoreBtn: "행사 복구",
+      actionFailed: "처리하지 못했어요. 다시 시도해 주세요.",
+      existing: "등록된 행사", spots: "정원", noEvents: "아직 행사가 없어요", cancelBtn: "행사 취소", cancelConfirm: "네, 취소할게요", cancelAbort: "아니요", restoreBtn: "행사 복구",
       open: "모집 중", closed: "마감", full: "정원 마감",
       toggleClose: "신청 마감하기", toggleOpen: "신청 열기",
       proposalsTitle: "서포터즈 제안", proposedBy: "제안:",
@@ -117,7 +123,7 @@ export default function AdminEventsClient({
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const inputStyle = { backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" };
+  const inputStyle = { backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" };
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -143,7 +149,9 @@ export default function AdminEventsClient({
     setSaving(false);
 
     if (insertError) {
-      setError(insertError.message);
+      // Raw PostgREST prose ("duplicate key value violates...") is not copy.
+      console.error("event insert failed:", insertError);
+      setError(L.actionFailed);
       return;
     }
     setSuccess(true);
@@ -159,7 +167,16 @@ export default function AdminEventsClient({
   async function decideProposal(event: Event, decision: "confirmed" | "rejected") {
     setTogglingId(event.id);
     const supabase = createClient();
-    await supabase.from("events").update({ approval_status: decision }).eq("id", event.id);
+    // The result used to be discarded: approving or rejecting a volunteer's
+    // proposal on a failed write looked exactly like success, celebration
+    // included.
+    const { error: decideError } = await supabase.from("events").update({ approval_status: decision }).eq("id", event.id);
+    if (decideError) {
+      console.error("event decision failed:", decideError);
+      setError(L.actionFailed);
+      setTogglingId(null);
+      return;
+    }
     setTogglingId(null);
     if (decision === "confirmed") companionReact("celebrate");
     router.refresh();
@@ -171,7 +188,7 @@ export default function AdminEventsClient({
   async function setCancelled(event: Event, cancelled: boolean) {
     setTogglingId(event.id);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("events")
       .update(
         cancelled
@@ -181,17 +198,27 @@ export default function AdminEventsClient({
       .eq("id", event.id);
     setTogglingId(null);
     setConfirmCancelId(null);
+    if (error) {
+      console.error("event cancel/restore failed:", error);
+      setError(L.actionFailed);
+      return;
+    }
     router.refresh();
   }
 
   async function toggleRegistration(event: Event) {
     setTogglingId(event.id);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("events")
       .update({ registration_status: event.registration_status === "open" ? "closed" : "open" })
       .eq("id", event.id);
     setTogglingId(null);
+    if (error) {
+      console.error("registration toggle failed:", error);
+      setError(L.actionFailed);
+      return;
+    }
     router.refresh();
   }
 
@@ -203,11 +230,11 @@ export default function AdminEventsClient({
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold anim-in" style={{ color: "#1C1C1C" }}>{L.title}</h1>
 
       {/* Create form */}
-      <section className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
+      <section className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 1 } as React.CSSProperties}>
         <h2 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{L.createTitle}</h2>
 
         <form onSubmit={handleCreate} className="space-y-4">
@@ -216,7 +243,7 @@ export default function AdminEventsClient({
             <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.host}</label>
               <input value={host} onChange={(e) => setHost(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
@@ -227,25 +254,25 @@ export default function AdminEventsClient({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.dateStart} *</label>
-              <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
+              <GlassDatePicker ariaLabel={L.dateStart} value={dateStart} onChange={setDateStart} />
             </div>
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.dateEnd}</label>
-              <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
+              <GlassDatePicker ariaLabel={L.dateEnd} value={dateEnd} onChange={setDateEnd} min={dateStart || undefined} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.timeStart}</label>
-              <input type="time" value={timeStart} onChange={(e) => setTimeStart(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
+              <GlassTimePicker ariaLabel={L.timeStart} value={timeStart} onChange={setTimeStart} />
             </div>
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.timeEnd}</label>
-              <input type="time" value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle} />
+              <GlassTimePicker ariaLabel={L.timeEnd} value={timeEnd} onChange={setTimeEnd} />
             </div>
           </div>
 
@@ -254,7 +281,7 @@ export default function AdminEventsClient({
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full px-3 py-2.5 text-sm rounded-lg outline-none resize-none" style={inputStyle} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:items-end">
             <div className="space-y-1">
               <label className="block text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.maxAttendees}</label>
               <input
@@ -263,7 +290,7 @@ export default function AdminEventsClient({
                 onChange={(e) => setMaxAttendees(e.target.value === "" ? "" : Number(e.target.value))}
                 className="w-full px-3 py-2.5 text-sm rounded-lg outline-none" style={inputStyle}
               />
-              <p className="text-xs" style={{ color: "#888" }}>{L.noLimit}</p>
+              <p className="text-xs" style={{ color: "#6B6258" }}>{L.noLimit}</p>
             </div>
             <label className="flex items-center gap-2 pb-6 cursor-pointer">
               <input type="checkbox" checked={regOpen} onChange={(e) => setRegOpen(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#38B39E" }} />
@@ -271,7 +298,7 @@ export default function AdminEventsClient({
             </label>
           </div>
 
-          {error && <p className="text-xs anim-pop" style={{ color: "#E2693E" }}>{error}</p>}
+          {error && <p role="alert" className="text-xs font-medium anim-pop" style={{ color: "#8C3010" }}>{error}</p>}
 
           <button
             type="submit"
@@ -332,8 +359,8 @@ export default function AdminEventsClient({
       <section className="space-y-3 anim-in" style={{ "--i": 2 } as React.CSSProperties}>
         <h2 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{L.existing}</h2>
         {events.filter((ev) => ev.approval_status !== "pending").length === 0 ? (
-          <div className="rounded-2xl text-center py-10 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
-            <p className="text-sm" style={{ color: "#888" }}>{L.noEvents}</p>
+          <div className="rounded-2xl text-center py-10 shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
+            <p className="text-sm" style={{ color: "#6B6258" }}>{L.noEvents}</p>
           </div>
         ) : (
           events.filter((ev) => ev.approval_status !== "pending").map((ev) => {
@@ -342,7 +369,7 @@ export default function AdminEventsClient({
             const isOpen = ev.registration_status === "open";
             const isDead = ev.approval_status === "cancelled" || ev.approval_status === "rejected";
             return (
-              <div key={ev.id} className="rounded-2xl p-4 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
+              <div key={ev.id} className="rounded-2xl p-4 shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
                 <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -352,30 +379,23 @@ export default function AdminEventsClient({
                     >
                       {ev.name}
                     </p>
-                    {isDead && (
-                      <span
-                        className="label-style px-2 py-0.5 rounded-full text-xs"
-                        style={{ backgroundColor: "rgba(226,105,62,0.15)", color: "#8C3010" }}
-                      >
-                        {ev.approval_status === "cancelled" ? L.cancelledState : L.rejectedState}
-                      </span>
-                    )}
+                    <EventStatusChip status={ev.approval_status} />
                     <span
                       className="label-style px-2 py-0.5 rounded-full text-xs"
                       style={{
                         backgroundColor: isFull ? "rgba(226,105,62,0.15)" : isOpen ? "rgba(56,179,158,0.12)" : "rgba(0,0,0,0.06)",
-                        color: isFull ? "#8C3010" : isOpen ? "#1F7A6E" : "#888",
+                        color: isFull ? "#8C3010" : isOpen ? "#1F7A6E" : "#6B6258",
                       }}
                     >
                       {isFull ? L.full : isOpen ? L.open : L.closed}
                     </span>
                   </div>
-                  <p className="text-xs mt-1" style={{ color: "#ECA040", fontWeight: 500 }}>
+                  <p className="text-xs mt-1" style={{ color: "#8A5A00", fontWeight: 500 }}>
                     {fmtDate(ev.event_date_start, ev.date_note)}{ev.event_date_end ? ` – ${fmtDate(ev.event_date_end)}` : ""}
                     {ev.start_time ? ` · ${ev.start_time.slice(0, 5)}` : ""}
                     {ev.place ? ` · ${ev.place}` : ""}
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: "#888" }}>
+                  <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>
                     {count}{ev.max_invited_koco != null ? ` / ${ev.max_invited_koco}` : ""} {L.spots}
                   </p>
                   {/* Which events came from a volunteer proposal, and who — the
@@ -423,7 +443,7 @@ export default function AdminEventsClient({
                       className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
                       style={{
                         backgroundColor: "rgba(56,179,158,0.12)",
-                        color: "#38B39E",
+                        color: "#1F7A6E",
                         opacity: togglingId === ev.id ? 0.6 : 1,
                       }}
                     >
@@ -451,7 +471,7 @@ export default function AdminEventsClient({
                     <button
                       onClick={() => setConfirmCancelId(ev.id)}
                       className="text-xs font-bold px-3 py-2 rounded-xl btn-hover whitespace-nowrap"
-                      style={{ backgroundColor: "rgba(226,105,62,0.12)", color: "#E2693E" }}
+                      style={{ backgroundColor: "rgba(226,105,62,0.12)", color: "#8C3010" }}
                     >
                       {L.cancelBtn}
                     </button>

@@ -4,9 +4,9 @@ import Link from "next/link";
 import ContentForm from "@/components/ContentForm";
 import AdminReviewPanel from "@/components/AdminReviewPanel";
 import ContributorsPanel from "@/components/ContributorsPanel";
+import PostStatusPanel from "@/components/PostStatusPanel";
 import { fetchContributors } from "@/lib/contributors";
-import { CONTENT_STATUS_LABEL as STATUS_LABEL } from "@/lib/i18n";
-import type { Profile, ContentPost, ContentStatus } from "@/lib/types";
+import type { Profile, ContentPost } from "@/lib/types";
 
 
 const PANEL_T = {
@@ -86,17 +86,16 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
   });
 
   const T = PANEL_T[profile.locale];
-  const feedback = [post.admin_notes, post.review_feedback].filter(Boolean).join("\n\n");
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl space-y-6">
       {/* Returning through this link restores the list's scroll position, so a
           post opened from the middle of ~90 rows does not send you back to the
           top (see lib/use-scroll-restoration). */}
       <Link
         href={profile.is_admin ? "/admin/content" : "/content"}
         className="inline-block text-sm font-bold btn-hover"
-        style={{ color: "#38B39E" }}
+        style={{ color: "#1F7A6E" }}
       >
         {T.back}
       </Link>
@@ -108,27 +107,7 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
 
       {/* Volunteer: status + team comments panel */}
       {!profile.is_admin && (
-        <div className="rounded-2xl p-5 shadow-koco space-y-3 anim-in" style={{ backgroundColor: "#F8F0DE" }}>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{T.statusTitle}</h2>
-            <span className={`chip-${post.status} label-style px-3 py-0.5 rounded-full whitespace-nowrap`}>
-              {STATUS_LABEL[post.status as ContentStatus][profile.locale]}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs" style={{ color: "#555" }}>
-            <p><span className="font-medium" style={{ color: "#1C1C1C" }}>{T.pubDate}:</span> {post.publication_date ?? T.noDate}</p>
-            {post.channel && <p><span className="font-medium" style={{ color: "#1C1C1C" }}>{T.channel}:</span> {post.channel}</p>}
-            {post.format && <p><span className="font-medium" style={{ color: "#1C1C1C" }}>{T.format}:</span> {post.format}</p>}
-          </div>
-
-          <div className="rounded-lg px-4 py-3" style={{ backgroundColor: feedback ? "rgba(56,179,158,0.08)" : "rgba(0,0,0,0.03)" }}>
-            <p className="text-xs font-bold mb-1" style={{ color: feedback ? "#1F7A6E" : "#888" }}>{T.comments}</p>
-            <p className="text-sm whitespace-pre-line" style={{ color: feedback ? "#1C1C1C" : "#888" }}>
-              {feedback || T.noComments}
-            </p>
-          </div>
-        </div>
+        <PostStatusPanel post={post as ContentPost} locale={profile.locale} t={T} />
       )}
 
       {/* Credit list — visible to everyone who can open the post. The lead can
@@ -150,14 +129,14 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
           isAdminView={profile.is_admin}
         />
       ) : (
-        <div className="rounded-2xl p-6 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
+        <div className="rounded-2xl p-6 shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 1 } as React.CSSProperties}>
           <h1 className="text-xl font-bold mb-3" style={{ color: "#1C1C1C" }}>{post.title}</h1>
           <div className="space-y-2 text-sm" style={{ color: "#555" }}>
             {post.caption && <p className="whitespace-pre-line">{post.caption}</p>}
-            {post.script && <p className="whitespace-pre-line text-xs" style={{ color: "#888" }}>{post.script}</p>}
-            {post.hashtags && <p className="text-xs" style={{ color: "#38B39E" }}>{post.hashtags}</p>}
+            {post.script && <p className="whitespace-pre-line text-xs" style={{ color: "#6B6258" }}>{post.script}</p>}
+            {post.hashtags && <p className="text-xs" style={{ color: "#1F7A6E" }}>{post.hashtags}</p>}
             {post.design_url && (
-              <a href={post.design_url} target="_blank" rel="noreferrer" className="inline-block text-xs font-bold underline" style={{ color: "#38B39E" }}>
+              <a href={post.design_url} target="_blank" rel="noreferrer" className="inline-block text-xs font-bold underline" style={{ color: "#1F7A6E" }}>
                 {post.design_url}
               </a>
             )}

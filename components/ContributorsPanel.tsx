@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import type { Contributor } from "@/lib/types";
+import GlassSelect from "@/components/glass/GlassSelect";
 
 const T = {
   es: {
@@ -118,11 +119,11 @@ export default function ContributorsPanel({
   const others = rows.filter((r) => r.role !== "lead");
 
   return (
-    <div className="rounded-2xl p-5 shadow-koco space-y-3 anim-in" style={{ backgroundColor: "#F8F0DE" }}>
+    <div className="rounded-2xl p-5 shadow-koco space-y-3 anim-in" style={{ backgroundColor: "#FDFAF3" }}>
       <h2 className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{L.heading}</h2>
 
       {rows.length === 0 ? (
-        <p className="text-sm" style={{ color: "#888" }}>{L.noneAtAll}</p>
+        <p className="text-sm" style={{ color: "#6B6258" }}>{L.noneAtAll}</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {lead && (
@@ -152,7 +153,7 @@ export default function ContributorsPanel({
             );
           })}
           {others.length === 0 && lead && (
-            <span className="text-xs self-center" style={{ color: "#888" }}>{L.none}</span>
+            <span className="text-xs self-center" style={{ color: "#6B6258" }}>{L.none}</span>
           )}
         </div>
       )}
@@ -160,27 +161,22 @@ export default function ContributorsPanel({
       {canEdit && (
         <div className="flex items-center gap-2 pt-1">
           <label className="text-xs font-medium" style={{ color: "#6B6258" }}>{L.add}:</label>
-          <select
+          {/* An "add" picker, not a value: it always reads as its prompt and
+              every choice is acted on immediately. */}
+          <GlassSelect
+            variant="compact"
+            ariaLabel={L.add}
             value=""
             disabled={busy || addable.length === 0}
-            onChange={(e) => add(e.target.value)}
-            className="px-2 py-1.5 text-xs rounded-lg outline-none"
-            style={{
-              backgroundColor: "#FFFFFF",
-              border: "1.5px solid #DDD0C4",
-              color: "#1C1C1C",
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            <option value="">{busy ? L.saving : L.select}</option>
-            {addable.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            onChange={(v) => v && add(v)}
+            placeholder={busy ? L.saving : L.select}
+            panelMinWidth={240}
+            options={addable.map((p) => ({ value: p.id, label: p.name }))}
+          />
         </div>
       )}
 
-      {failed && <p className="text-xs" style={{ color: "#E2693E" }}>{L.failed}</p>}
+      {failed && <p className="text-xs" style={{ color: "#8C3010" }}>{L.failed}</p>}
     </div>
   );
 }
@@ -207,17 +203,17 @@ function Chip({
       style={{
         backgroundColor: accent ? "rgba(56,179,158,0.15)" : "#FFFFFF",
         color: accent ? "#1F7A6E" : "#1C1C1C",
-        border: accent ? "none" : "1.5px solid #E8DCCF",
+        border: accent ? "none" : "1.5px solid #EFE6D9",
       }}
     >
       {label}
-      {tag && <span style={{ color: accent ? "#1F7A6E" : "#9A8F84", fontWeight: 400 }}>· {tag}</span>}
+      {tag && <span style={{ color: accent ? "#1F7A6E" : "#6B6258", fontWeight: 400 }}>· {tag}</span>}
       {onRemove && (
         <button
           onClick={onRemove}
           aria-label={`${removeLabel}: ${label}`}
           className="ml-0.5 leading-none"
-          style={{ color: "#B0A79C", fontSize: 14 }}
+          style={{ color: "#6B6258", fontSize: 14 }}
         >
           ×
         </button>

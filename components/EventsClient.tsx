@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import EventStatusChip from "@/components/EventStatusChip";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
 import { DATE_LOCALE, type Locale } from "@/lib/i18n";
 import EventEditForm from "@/components/EventEditForm";
 import EventSignupsList from "@/components/EventSignupsList";
+import GlassDatePicker from "@/components/glass/GlassDatePicker";
+import GlassTimePicker from "@/components/glass/GlassTimePicker";
 
 type Event = {
   id: string;
@@ -90,6 +93,8 @@ export default function EventsClient({
   const [myRsvps, setMyRsvps] = useState<Record<string, Rsvp>>(initialRsvps);
   const [counts, setCounts] = useState<Record<string, number>>(initialCounts);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  /** Keyed to the event, so the message lands on the card that failed. */
+  const [rsvpError, setRsvpError] = useState<{ id: string; message: string } | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
@@ -101,8 +106,16 @@ export default function EventsClient({
   // Volunteer event proposals
   const [proposals, setProposals] = useState<Proposal[]>(initialProposals);
   const [showPropose, setShowPropose] = useState(false);
+  // The proposal form carries every field the admin create form does, minus
+  // the two decisions that are not a volunteer's to make: approval, and
+  // whether registration is open. A proposal that arrives with the host and
+  // the times already filled in can be approved as-is.
   const [pName, setPName] = useState("");
+  const [pHost, setPHost] = useState("");
   const [pDate, setPDate] = useState("");
+  const [pDateEnd, setPDateEnd] = useState("");
+  const [pTimeStart, setPTimeStart] = useState("");
+  const [pTimeEnd, setPTimeEnd] = useState("");
   const [pPlace, setPPlace] = useState("");
   const [pDesc, setPDesc] = useState("");
   const [pMax, setPMax] = useState<number | "">("");
@@ -116,7 +129,7 @@ export default function EventsClient({
 
   const T = {
     es: {
-      title: "Eventos", upcoming: "Próximos eventos", past: "Eventos pasados", cancelled: "Cancelado", rejected: "Rechazado", pendingState: "Por confirmar",
+      title: "Eventos", upcoming: "Próximos eventos", past: "Eventos pasados",
       noUp: "No hay eventos próximos confirmados",
       attend: "Inscribirme", decline: "No asistiré",
       attending: "Inscrito/a ✓", declined: "No asistirás",
@@ -125,20 +138,21 @@ export default function EventsClient({
       list: "Lista", calendar: "Calendario", noEvents: "Sin eventos",
       prev: "Ant", next: "Sig",
       spots: "cupos", spotsLeft: "cupos disponibles",
+      rsvpFailed: "No pudimos registrar tu inscripción. Inténtalo de nuevo.",
       confirmAttend: "¿Confirmas tu inscripción? Esta decisión no se puede cambiar.",
       confirmDecline: "¿Confirmas que NO asistirás? Esta decisión no se puede cambiar.",
       weekDays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
       myProps: "Mis propuestas", propose: "+ Proponer evento",
-      propName: "Nombre del evento", propDate: "Fecha", propDesc: "Descripción",
+      propName: "Nombre del evento", propDate: "Fecha inicio", propDesc: "Descripción",
+      propDateEnd: "Fecha fin (opcional)", propTimeStart: "Hora inicio", propTimeEnd: "Hora fin",
       propMax: "Cupos (máx. asistentes)", propMaxHint: "Sin límite si queda vacío",
       propHint: "El equipo KOICA la revisará antes de publicarla.",
       propSend: "Enviar propuesta", propSending: "Enviando...", propCancel: "Cancelar",
       propSaved: "¡Propuesta enviada!", propRequired: "Nombre y fecha son obligatorios.",
-      propPending: "Pendiente", propConfirmed: "Confirmado", propRejected: "Rechazado",
       editBtn: "Editar mi evento", editHint: "Puedes editarlo mientras las inscripciones están abiertas.",
     },
     en: {
-      title: "Events", upcoming: "Upcoming events", past: "Past events", cancelled: "Cancelled", rejected: "Rejected", pendingState: "Not confirmed",
+      title: "Events", upcoming: "Upcoming events", past: "Past events",
       noUp: "No upcoming confirmed events",
       attend: "Sign up", decline: "Not attending",
       attending: "Signed up ✓", declined: "Not attending",
@@ -148,19 +162,20 @@ export default function EventsClient({
       prev: "Prev", next: "Next",
       spots: "spots", spotsLeft: "spots left",
       myProps: "My proposals", propose: "+ Propose event",
-      propName: "Event name", propDate: "Date", propDesc: "Description",
+      propName: "Event name", propDate: "Start date", propDesc: "Description",
+      propDateEnd: "End date (optional)", propTimeStart: "Start time", propTimeEnd: "End time",
       propMax: "Spots (max attendees)", propMaxHint: "No limit if left empty",
       propHint: "The KOICA team will review it before it goes live.",
       propSend: "Send proposal", propSending: "Sending...", propCancel: "Cancel",
       propSaved: "Proposal sent!", propRequired: "Name and date are required.",
-      propPending: "Pending", propConfirmed: "Confirmed", propRejected: "Rejected",
       editBtn: "Edit my event", editHint: "You can edit it while registration is open.",
+      rsvpFailed: "We couldn’t register your sign-up. Please try again.",
       confirmAttend: "Confirm your sign-up? This choice cannot be changed.",
       confirmDecline: "Confirm you will NOT attend? This choice cannot be changed.",
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     },
     ko: {
-      title: "행사", upcoming: "다가오는 행사", past: "지난 행사", cancelled: "취소됨", rejected: "반려됨", pendingState: "미확정",
+      title: "행사", upcoming: "다가오는 행사", past: "지난 행사",
       noUp: "예정된 행사가 없어요",
       attend: "신청하기", decline: "불참할게요",
       attending: "신청 완료 ✓", declined: "불참",
@@ -170,19 +185,23 @@ export default function EventsClient({
       prev: "이전", next: "다음",
       spots: "정원", spotsLeft: "자리 남음",
       myProps: "내 제안", propose: "+ 행사 제안하기",
-      propName: "행사 이름", propDate: "날짜", propDesc: "설명",
+      propName: "행사 이름", propDate: "시작 날짜", propDesc: "설명",
+      propDateEnd: "종료 날짜 (선택)", propTimeStart: "시작 시간", propTimeEnd: "종료 시간",
       propMax: "정원 (최대 인원)", propMaxHint: "비워 두면 제한 없음",
       propHint: "KOICA 팀이 검토한 뒤에 올라가요.",
       propSend: "제안 보내기", propSending: "보내는 중...", propCancel: "취소",
       propSaved: "제안을 보냈어요!", propRequired: "이름과 날짜는 필수예요.",
-      propPending: "대기 중", propConfirmed: "확정", propRejected: "반려",
       editBtn: "내 행사 수정", editHint: "신청이 열려 있는 동안 수정할 수 있어요.",
       confirmAttend: "신청할까요? 한 번 정하면 바꿀 수 없어요.",
       confirmDecline: "불참으로 할까요? 한 번 정하면 바꿀 수 없어요.",
+      rsvpFailed: "신청을 등록하지 못했어요. 다시 시도해 주세요.",
       weekDays: ["일", "월", "화", "수", "목", "금", "토"],
     },
   } as const;
   const L = T[locale];
+
+  /** Matches the admin create form's inputStyle, field for field. */
+  const propInput = { backgroundColor: "#FDFAF3", border: "1.5px solid #DDD0C4", color: "#1C1C1C" };
 
   async function submitProposal(e: React.FormEvent) {
     e.preventDefault();
@@ -193,7 +212,11 @@ export default function EventsClient({
       .from("events")
       .insert({
         name: pName.trim(),
+        host: pHost.trim() || null,
         event_date_start: pDate,
+        event_date_end: pDateEnd || null,
+        start_time: pTimeStart || null,
+        end_time: pTimeEnd || null,
         place: pPlace.trim() || null,
         description: pDesc.trim() || null,
         // Same field the admin create form uses, so a proposal arrives with
@@ -213,7 +236,8 @@ export default function EventsClient({
       return;
     }
     setProposals((prev) => [data as Proposal, ...prev]);
-    setPName(""); setPDate(""); setPPlace(""); setPDesc(""); setPMax("");
+    setPName(""); setPHost(""); setPDate(""); setPDateEnd("");
+    setPTimeStart(""); setPTimeEnd(""); setPPlace(""); setPDesc(""); setPMax("");
     setPStatus("idle");
     setShowPropose(false);
     companionReact("celebrate", L.propSaved);
@@ -233,12 +257,19 @@ export default function EventsClient({
     });
     setLoadingId(null);
 
-    if (!error) {
-      setMyRsvps((prev) => ({ ...prev, [event.id]: choice }));
-      if (choice === "accepted") {
-        setCounts((prev) => ({ ...prev, [event.id]: (prev[event.id] ?? 0) + 1 }));
-        companionReact("celebrate");
-      }
+    if (error) {
+      // This branch did not exist: a refused sign-up left the card completely
+      // unchanged, after the volunteer had already confirmed. The single most
+      // important action on this screen failed in total silence.
+      console.error("event_attendees insert failed:", error);
+      setRsvpError({ id: event.id, message: L.rsvpFailed });
+      return;
+    }
+    setRsvpError(null);
+    setMyRsvps((prev) => ({ ...prev, [event.id]: choice }));
+    if (choice === "accepted") {
+      setCounts((prev) => ({ ...prev, [event.id]: (prev[event.id] ?? 0) + 1 }));
+      companionReact("celebrate");
     }
   }
 
@@ -261,7 +292,7 @@ export default function EventsClient({
       !isAdmin && event.proposed_by_id === profileId && state === "confirmed" && isOpen;
 
     return (
-      <div className="rounded-2xl p-5 shadow-koco" style={{ backgroundColor: "#F8F0DE" }}>
+      <div className="rounded-2xl p-5 shadow-koco" style={{ backgroundColor: "#FDFAF3" }}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -271,30 +302,23 @@ export default function EventsClient({
               >
                 {event.name}
               </h3>
-              {state !== "confirmed" && (
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-                  style={{
-                    backgroundColor: isCancelled ? "rgba(226,105,62,0.15)" : "rgba(236,160,64,0.18)",
-                    color: isCancelled ? "#E2693E" : "#B07A1A",
-                  }}
-                >
-                  {state === "cancelled" ? L.cancelled : state === "rejected" ? L.rejected : L.pendingState}
-                </span>
-              )}
+              <EventStatusChip status={state} />
             </div>
-            <p className="text-sm mt-1 font-medium" style={{ color: "#ECA040" }}>
+            <p className="text-sm mt-1 font-medium" style={{ color: "#8A5A00" }}>
               {formatDate(event.event_date_start, event.event_date_end, locale, event.date_note)}
               {time ? ` · ${time}` : ""}
             </p>
-            {event.place && <p className="text-xs mt-0.5" style={{ color: "#888" }}>📍 {event.place}</p>}
-            {event.host && <p className="text-xs mt-0.5" style={{ color: "#888" }}>{L.host}: {event.host}</p>}
+            {event.place && <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>📍 {event.place}</p>}
+            {event.host && <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>{L.host}: {event.host}</p>}
             {spotsLeft != null && canSignUp && !myChoice && (
               <p className="text-xs mt-1 font-medium" style={{ color: isFull ? "#E2693E" : "#38B39E" }}>
                 {isFull ? L.full : `${spotsLeft} ${L.spotsLeft}`}
               </p>
             )}
-            {event.description && <p className="text-sm mt-2 leading-relaxed" style={{ color: "#555" }}>{event.description}</p>}
+            {event.description && <p className="text-sm mt-2 leading-relaxed measure" style={{ color: "#555" }}>{event.description}</p>}
+            {rsvpError?.id === event.id && (
+              <p role="alert" className="text-xs font-medium mt-2" style={{ color: "#8C3010" }}>{rsvpError.message}</p>
+            )}
           </div>
 
           {canSignUp && (
@@ -304,17 +328,17 @@ export default function EventsClient({
                   className="text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap anim-pop"
                   style={{
                     backgroundColor: myChoice === "accepted" ? "rgba(56,179,158,0.12)" : "rgba(0,0,0,0.06)",
-                    color: myChoice === "accepted" ? "#38B39E" : "#888",
+                    color: myChoice === "accepted" ? "#1F7A6E" : "#6B6258",
                   }}
                 >
                   {myChoice === "accepted" ? L.attending : L.declined}
                 </span>
               ) : !isOpen ? (
-                <span className="text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap" style={{ backgroundColor: "rgba(0,0,0,0.06)", color: "#888" }}>
+                <span className="text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap" style={{ backgroundColor: "rgba(0,0,0,0.06)", color: "#6B6258" }}>
                   {L.closed}
                 </span>
               ) : isFull ? (
-                <span className="text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap" style={{ backgroundColor: "rgba(226,105,62,0.12)", color: "#E2693E" }}>
+                <span className="text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap" style={{ backgroundColor: "rgba(226,105,62,0.12)", color: "#8C3010" }}>
                   {L.full}
                 </span>
               ) : (
@@ -398,7 +422,7 @@ export default function EventsClient({
           <button
             onClick={() => { setCalMonth(new Date(year, month - 1, 1)); setSelectedDay(null); }}
             className="p-2 rounded-lg btn-hover text-sm font-bold"
-            style={{ color: "#ECA040" }}
+            style={{ color: "#8A5A00" }}
           >
             ‹ {L.prev}
           </button>
@@ -406,17 +430,17 @@ export default function EventsClient({
           <button
             onClick={() => { setCalMonth(new Date(year, month + 1, 1)); setSelectedDay(null); }}
             className="p-2 rounded-lg btn-hover text-sm font-bold"
-            style={{ color: "#ECA040" }}
+            style={{ color: "#8A5A00" }}
           >
             {L.next} ›
           </button>
         </div>
 
         {/* Grid — keyed by month so navigation gets a fresh entrance */}
-        <div key={`${year}-${month}`} className="rounded-2xl overflow-hidden shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE" }}>
-          <div className="grid grid-cols-7 border-b" style={{ borderColor: "#E8DCCF", backgroundColor: "#ECA040" }}>
+        <div key={`${year}-${month}`} className="rounded-2xl overflow-hidden shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3" }}>
+          <div className="grid grid-cols-7 border-b" style={{ borderColor: "#EFE6D9", backgroundColor: "#ECA040" }}>
             {L.weekDays.map((d) => (
-              <div key={d} className="py-2 text-center text-xs font-bold text-white">{d}</div>
+              <div key={d} className="py-2 text-center text-xs font-bold" style={{ color: "#4A2C00" }}>{d}</div>
             ))}
           </div>
 
@@ -436,8 +460,8 @@ export default function EventsClient({
                   className="aspect-square flex flex-col items-center pt-1.5 pb-1 relative transition-colors"
                   style={{
                     backgroundColor: isSelected ? "rgba(236,160,64,0.15)" : isToday ? "rgba(56,179,158,0.08)" : "transparent",
-                    borderRight: "1px solid #E8DCCF",
-                    borderBottom: "1px solid #E8DCCF",
+                    borderRight: "1px solid #EFE6D9",
+                    borderBottom: "1px solid #EFE6D9",
                   }}
                 >
                   <span
@@ -473,7 +497,7 @@ export default function EventsClient({
               {new Date(year, month, selectedDay).toLocaleDateString(DATE_LOCALE[locale], { weekday: "long", day: "numeric", month: "long" })}
             </h3>
             {selectedEvents.length === 0 ? (
-              <p className="text-sm" style={{ color: "#888" }}>{L.noEvents}</p>
+              <p className="text-sm" style={{ color: "#6B6258" }}>{L.noEvents}</p>
             ) : (
               selectedEvents.map((ev) => (
                 <EventCard key={ev.id} event={ev} showSignup={!isAdmin && (!ev.event_date_start || ev.event_date_start >= todayStr)} />
@@ -487,7 +511,7 @@ export default function EventsClient({
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header + propose button (volunteers) + sliding view toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3 anim-in" style={{ "--i": 0 } as React.CSSProperties}>
         <h1 className="text-2xl font-bold" style={{ color: "#1C1C1C" }}>{L.title}</h1>
@@ -547,11 +571,11 @@ export default function EventsClient({
           <section className="space-y-4">
             <h2 className="text-base font-bold anim-in" style={{ color: "#1C1C1C", "--i": 1 } as React.CSSProperties}>{L.upcoming}</h2>
             {upcoming.length === 0 ? (
-              <div className="rounded-2xl text-center py-10 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 2 } as React.CSSProperties}>
+              <div className="rounded-2xl text-center py-10 shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 2 } as React.CSSProperties}>
                 {/* Official brand sticker: the KOICA van will bring the next one */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/brand/art-van.webp" alt="" aria-hidden className="mx-auto mb-3 select-none" style={{ width: 170 }} />
-                <p className="text-sm" style={{ color: "#888" }}>{L.noUp}</p>
+                <p className="text-sm" style={{ color: "#6B6258" }}>{L.noUp}</p>
               </div>
             ) : (
               upcoming.map((ev, i) => (
@@ -568,49 +592,65 @@ export default function EventsClient({
               <h2 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{L.myProps}</h2>
 
               {showPropose && (
-                <form id="propose-form" onSubmit={submitProposal} className="rounded-2xl p-5 shadow-koco space-y-3 anim-pop" style={{ backgroundColor: "#F8F0DE" }}>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propName} *</label>
-                      <input
-                        value={pName}
-                        onChange={(e) => setPName(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 text-sm rounded-lg outline-none"
-                        style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propDate} *</label>
-                      <input
-                        type="date"
-                        value={pDate}
-                        onChange={(e) => setPDate(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 text-sm rounded-lg outline-none"
-                        style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
-                      />
-                    </div>
-                  </div>
+                <form id="propose-form" onSubmit={submitProposal} className="rounded-2xl p-5 shadow-koco space-y-3 anim-pop" style={{ backgroundColor: "#FDFAF3" }}>
+                  {/* Same fields, same order, same pairings as the admin
+                      create form in AdminEventsClient - a volunteer describes
+                      an event exactly the way an admin does. */}
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.place}</label>
+                    <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propName} *</label>
                     <input
-                      value={pPlace}
-                      onChange={(e) => setPPlace(e.target.value)}
+                      value={pName}
+                      onChange={(e) => setPName(e.target.value)}
+                      required
                       className="w-full px-3 py-2 text-sm rounded-lg outline-none"
-                      style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                      style={propInput}
                     />
                   </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.host}</label>
+                      <input value={pHost} onChange={(e) => setPHost(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={propInput} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.place}</label>
+                      <input value={pPlace} onChange={(e) => setPPlace(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={propInput} />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propDate} *</label>
+                      <GlassDatePicker ariaLabel={L.propDate} value={pDate} onChange={setPDate} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propDateEnd}</label>
+                      <GlassDatePicker ariaLabel={L.propDateEnd} value={pDateEnd} onChange={setPDateEnd} min={pDate || undefined} />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propTimeStart}</label>
+                      <GlassTimePicker ariaLabel={L.propTimeStart} value={pTimeStart} onChange={setPTimeStart} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propTimeEnd}</label>
+                      <GlassTimePicker ariaLabel={L.propTimeEnd} value={pTimeEnd} onChange={setPTimeEnd} />
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
                     <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propDesc}</label>
                     <textarea
                       value={pDesc}
                       onChange={(e) => setPDesc(e.target.value)}
-                      rows={2}
+                      rows={3}
                       className="w-full px-3 py-2 text-sm rounded-lg outline-none resize-y"
-                      style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                      style={propInput}
                     />
                   </div>
+
                   <div className="space-y-1">
                     <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.propMax}</label>
                     <input
@@ -619,13 +659,13 @@ export default function EventsClient({
                       value={pMax}
                       onChange={(e) => setPMax(e.target.value === "" ? "" : Number(e.target.value))}
                       className="w-full sm:w-40 px-3 py-2 text-sm rounded-lg outline-none"
-                      style={{ backgroundColor: "#F8F0DE", border: "1.5px solid #DDD0C4", color: "#1C1C1C" }}
+                      style={propInput}
                     />
-                    <p className="text-xs" style={{ color: "#888" }}>{L.propMaxHint}</p>
+                    <p className="text-xs" style={{ color: "#6B6258" }}>{L.propMaxHint}</p>
                   </div>
-                  <p className="text-xs" style={{ color: "#888" }}>{L.propHint}</p>
+                  <p className="text-xs" style={{ color: "#6B6258" }}>{L.propHint}</p>
                   {pStatus === "error" && (
-                    <p className="text-xs anim-pop" style={{ color: "#E2693E" }}>{L.propRequired}</p>
+                    <p className="text-xs anim-pop" style={{ color: "#8C3010" }}>{L.propRequired}</p>
                   )}
                   <div className="flex gap-2">
                     <button
@@ -649,27 +689,23 @@ export default function EventsClient({
               )}
 
               {proposals.length > 0 && (
-                <div className="rounded-2xl overflow-hidden shadow-koco divide-y" style={{ backgroundColor: "#F8F0DE", borderColor: "#E8DCCF" }}>
-                  {proposals.map((p) => {
-                    const chip = p.approval_status === "confirmed"
-                      ? { bg: "rgba(56,179,158,0.14)", color: "#1F7A6E", label: L.propConfirmed }
-                      : p.approval_status === "rejected"
-                      ? { bg: "rgba(226,105,62,0.14)", color: "#B3401E", label: L.propRejected }
-                      : { bg: "rgba(236,160,64,0.16)", color: "#B07A1A", label: L.propPending };
-                    return (
-                      <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>{p.name}</p>
-                          <p className="text-xs" style={{ color: "#888" }}>
-                            {p.event_date_start}{p.place ? ` · ${p.place}` : ""}
-                          </p>
-                        </div>
-                        <span className="label-style px-2.5 py-0.5 rounded-full text-xs shrink-0" style={{ backgroundColor: chip.bg, color: chip.color }}>
-                          {chip.label}
-                        </span>
+                <div className="rounded-2xl overflow-hidden shadow-koco divide-y" style={{ backgroundColor: "#FDFAF3", borderColor: "#EFE6D9" }}>
+                  {proposals.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: "#1C1C1C" }}>{p.name}</p>
+                        <p className="text-xs" style={{ color: "#6B6258" }}>
+                          {p.event_date_start}{p.place ? ` · ${p.place}` : ""}
+                        </p>
                       </div>
-                    );
-                  })}
+                      {/* `always`: on your own proposals the verdict is the
+                          whole point, so "approved" is spelled out here even
+                          though it stays implicit on the events list. */}
+                      <span className="shrink-0">
+                        <EventStatusChip status={p.approval_status} always />
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -678,7 +714,7 @@ export default function EventsClient({
           {/* Past */}
           {past.length > 0 && (
             <section className="space-y-4">
-              <h2 className="text-base font-bold" style={{ color: "#888" }}>{L.past}</h2>
+              <h2 className="text-base font-bold" style={{ color: "#6B6258" }}>{L.past}</h2>
               {past.map((ev) => (
                 <div key={ev.id} style={{ opacity: 0.65 }}>
                   <EventCard event={ev} showSignup={false} />

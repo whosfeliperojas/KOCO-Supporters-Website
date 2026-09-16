@@ -67,6 +67,7 @@ export default function AdminDashboardClient({
       pendingTitle: "Pendientes de enviar su propuesta",
       calTitle: "Eventos", week: "Semana", month: "Mes",
       thisWeek: "Esta semana", noWeekEvents: "No hay eventos esta semana",
+      comingUp: "Más adelante", noFutureEvents: "Nada programado más adelante",
       host: "Organizador", place: "Lugar", spots: "cupos", open: "Abierto", closedReg: "Cerrado",
       noEvents: "Sin eventos", prev: "Ant", next: "Sig",
       weekDays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
@@ -79,6 +80,7 @@ export default function AdminDashboardClient({
       pendingTitle: "Still pending their proposal",
       calTitle: "Events", week: "Week", month: "Month",
       thisWeek: "This week", noWeekEvents: "No events this week",
+      comingUp: "Coming up", noFutureEvents: "Nothing scheduled beyond this week",
       host: "Host", place: "Place", spots: "spots", open: "Open", closedReg: "Closed",
       noEvents: "No events", prev: "Prev", next: "Next",
       weekDays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -91,6 +93,7 @@ export default function AdminDashboardClient({
       pendingTitle: "아직 제안을 기다리고 있어요",
       calTitle: "행사", week: "주간", month: "월간",
       thisWeek: "이번 주", noWeekEvents: "이번 주에는 행사가 없어요",
+      comingUp: "앞으로", noFutureEvents: "이번 주 이후 예정된 행사가 없어요",
       host: "주최", place: "장소", spots: "정원", open: "모집 중", closedReg: "마감",
       noEvents: "행사 없음", prev: "이전", next: "다음",
       weekDays: ["일", "월", "화", "수", "목", "금", "토"],
@@ -132,6 +135,11 @@ export default function AdminDashboardClient({
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndStr = weekEnd.toISOString().split("T")[0];
   const weekEvents = events.filter((e) => e.event_date_start >= todayStr && e.event_date_start <= weekEndStr);
+  // Everything still to come after this week. Nothing moves these lists by
+  // hand: an event crosses from "coming up" into "this week" simply because
+  // todayStr advanced past it, so the dashboard is right every morning
+  // without anyone rescheduling anything.
+  const futureEvents = events.filter((e) => e.event_date_start > weekEndStr);
 
   function fmtDate(d: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" }) {
     return new Date(d + "T12:00:00").toLocaleDateString(DATE_LOCALE[locale], opts);
@@ -147,23 +155,23 @@ export default function AdminDashboardClient({
             className="label-style px-2 py-0.5 rounded-full text-xs shrink-0"
             style={{
               backgroundColor: isOpen ? "rgba(56,179,158,0.12)" : "rgba(0,0,0,0.06)",
-              color: isOpen ? "#1F7A6E" : "#888",
+              color: isOpen ? "#1F7A6E" : "#6B6258",
             }}
           >
             {isOpen ? L.open : L.closedReg}
           </span>
         </div>
-        <p className="text-xs mt-1 font-medium capitalize" style={{ color: "#ECA040" }}>
+        <p className="text-xs mt-1 font-medium capitalize" style={{ color: "#8A5A00" }}>
           {fmtDate(ev.event_date_start)}
           {ev.start_time ? ` · ${ev.start_time.slice(0, 5)}${ev.end_time ? `–${ev.end_time.slice(0, 5)}` : ""}` : ""}
         </p>
         {(ev.place || ev.host) && (
-          <p className="text-xs mt-0.5" style={{ color: "#888" }}>
+          <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>
             {ev.place ? `📍 ${ev.place}` : ""}{ev.place && ev.host ? " · " : ""}{ev.host ? `${L.host}: ${ev.host}` : ""}
           </p>
         )}
         {ev.max_invited_koco != null && (
-          <p className="text-xs mt-0.5" style={{ color: "#888" }}>{ev.max_invited_koco} {L.spots}</p>
+          <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>{ev.max_invited_koco} {L.spots}</p>
         )}
         {ev.description && <p className="text-xs mt-2 leading-relaxed" style={{ color: "#555" }}>{ev.description}</p>}
       </div>
@@ -189,18 +197,18 @@ export default function AdminDashboardClient({
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <button onClick={() => { setCalMonth(new Date(year, month - 1, 1)); setSelectedDay(null); }} className="p-2 rounded-lg btn-hover text-sm font-bold" style={{ color: "#ECA040" }}>
+          <button onClick={() => { setCalMonth(new Date(year, month - 1, 1)); setSelectedDay(null); }} className="p-2 rounded-lg btn-hover text-sm font-bold" style={{ color: "#8A5A00" }}>
             ‹ {L.prev}
           </button>
           <h3 className="text-sm font-bold capitalize" style={{ color: "#1C1C1C" }}>{label}</h3>
-          <button onClick={() => { setCalMonth(new Date(year, month + 1, 1)); setSelectedDay(null); }} className="p-2 rounded-lg btn-hover text-sm font-bold" style={{ color: "#ECA040" }}>
+          <button onClick={() => { setCalMonth(new Date(year, month + 1, 1)); setSelectedDay(null); }} className="p-2 rounded-lg btn-hover text-sm font-bold" style={{ color: "#8A5A00" }}>
             {L.next} ›
           </button>
         </div>
 
-        <div key={`${year}-${month}`} className="rounded-2xl overflow-hidden shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE" }}>
+        <div key={`${year}-${month}`} className="rounded-2xl overflow-hidden shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3" }}>
           <div className="grid grid-cols-7" style={{ backgroundColor: "#ECA040" }}>
-            {L.weekDays.map((d) => <div key={d} className="py-1.5 text-center text-xs font-bold text-white">{d}</div>)}
+            {L.weekDays.map((d) => <div key={d} className="py-1.5 text-center text-xs font-bold" style={{ color: "#4A2C00" }}>{d}</div>)}
           </div>
           <div className="grid grid-cols-7">
             {cells.map((day, i) => {
@@ -216,8 +224,8 @@ export default function AdminDashboardClient({
                   className="h-12 flex flex-col items-center justify-center relative transition-colors"
                   style={{
                     backgroundColor: isSelected ? "rgba(236,160,64,0.15)" : isToday ? "rgba(56,179,158,0.08)" : "transparent",
-                    borderRight: "1px solid #E8DCCF",
-                    borderBottom: "1px solid #E8DCCF",
+                    borderRight: "1px solid #EFE6D9",
+                    borderBottom: "1px solid #EFE6D9",
                   }}
                 >
                   <span
@@ -242,7 +250,7 @@ export default function AdminDashboardClient({
         {selectedDay && (
           <div key={selectedDay} className="space-y-2 anim-in">
             {selectedEvents.length === 0 ? (
-              <p className="text-sm text-center py-3" style={{ color: "#888" }}>{L.noEvents}</p>
+              <p className="text-sm text-center py-3" style={{ color: "#6B6258" }}>{L.noEvents}</p>
             ) : (
               selectedEvents.map((ev, i) => <EventDetailCard key={ev.id} ev={ev} i={i} />)
             )}
@@ -254,14 +262,14 @@ export default function AdminDashboardClient({
 
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="space-y-6">
       {/* Greeting — the scrapbook moment */}
       <div className="flex items-center justify-between gap-4 anim-in" style={{ "--i": 0 } as React.CSSProperties}>
         <div>
           <h1 className="text-3xl font-bold" style={{ color: "#1C1C1C" }}>
-            {L.greeting}, {adminName} ✦
+            {L.greeting}, {adminName}
           </h1>
-          <p className="text-sm mt-1 capitalize" style={{ color: "#888" }}>{monthLabel}</p>
+          <p className="text-sm mt-1 capitalize" style={{ color: "#6B6258" }}>{monthLabel}</p>
         </div>
         {/* On desktop the sidebar companion greets — Peko appears here only on mobile */}
         <div className="md:hidden shrink-0">
@@ -270,10 +278,10 @@ export default function AdminDashboardClient({
       </div>
 
       {/* ── Submission tracker ── */}
-      <section className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#F8F0DE", "--i": 1 } as React.CSSProperties}>
+      <section className="rounded-2xl p-5 shadow-koco space-y-4 anim-in" style={{ backgroundColor: "#FDFAF3", "--i": 1 } as React.CSSProperties}>
         <div>
           <h2 className="text-base font-bold" style={{ color: "#1C1C1C" }}>{L.tracker}</h2>
-          <p className="text-xs mt-0.5" style={{ color: "#888" }}>{L.trackerDesc}</p>
+          <p className="text-xs mt-0.5" style={{ color: "#6B6258" }}>{L.trackerDesc}</p>
         </div>
 
         {/* Stacked horizontal bar — 2px surface gaps, rounded ends */}
@@ -375,15 +383,25 @@ export default function AdminDashboardClient({
 
         {calView === "week" ? (
           <div className="space-y-3" key="week">
-            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "#888" }}>{L.thisWeek}</p>
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "#6B6258" }}>{L.thisWeek}</p>
             {weekEvents.length === 0 ? (
-              <div className="rounded-2xl text-center py-10 shadow-koco anim-in" style={{ backgroundColor: "#F8F0DE" }}>
-                <p className="text-sm" style={{ color: "#888" }}>{L.noWeekEvents}</p>
+              <div className="rounded-2xl text-center py-10 shadow-koco anim-in" style={{ backgroundColor: "#FDFAF3" }}>
+                <p className="text-sm" style={{ color: "#6B6258" }}>{L.noWeekEvents}</p>
               </div>
             ) : (
               weekEvents.map((ev, i) => <EventDetailCard key={ev.id} ev={ev} i={i} />)
             )}
-            <Link href="/admin/events" className="inline-block text-xs font-bold underline" style={{ color: "#38B39E" }}>
+
+            <p className="text-xs font-bold uppercase tracking-wide pt-2" style={{ color: "#6B6258" }}>
+              {L.comingUp}{futureEvents.length > 0 ? ` (${futureEvents.length})` : ""}
+            </p>
+            {futureEvents.length === 0 ? (
+              <p className="text-sm" style={{ color: "#6B6258" }}>{L.noFutureEvents}</p>
+            ) : (
+              futureEvents.map((ev, i) => <EventDetailCard key={ev.id} ev={ev} i={weekEvents.length + i} />)
+            )}
+
+            <Link href="/admin/events" className="inline-block text-xs font-bold underline" style={{ color: "#1F7A6E" }}>
               → {L.calTitle}
             </Link>
           </div>

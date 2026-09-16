@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
+import GlassDatePicker from "@/components/glass/GlassDatePicker";
+import GlassTimePicker from "@/components/glass/GlassTimePicker";
 
 export type EditableEvent = {
   id: string;
@@ -117,13 +119,13 @@ export default function EventEditForm({
   }
 
   return (
-    <form onSubmit={handleSave} className="rounded-xl p-4 space-y-3 anim-pop" style={{ backgroundColor: "#FFFFFF", border: "1.5px solid #E8DCCF" }}>
+    <form onSubmit={handleSave} className="rounded-xl p-4 space-y-3 anim-pop" style={{ backgroundColor: "#FFFFFF", border: "1.5px solid #EFE6D9" }}>
       <div className="space-y-1">
         <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.name} *</label>
         <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.host}</label>
           <input value={host} onChange={(e) => setHost(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle} />
@@ -134,25 +136,25 @@ export default function EventEditForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.dateStart} *</label>
-          <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle} />
+          <GlassDatePicker ariaLabel={L.dateStart} value={dateStart} onChange={setDateStart} />
         </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.dateEnd}</label>
-          <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle} />
+          <GlassDatePicker ariaLabel={L.dateEnd} value={dateEnd} onChange={setDateEnd} min={dateStart || undefined} />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.timeStart}</label>
-          <input type="time" value={timeStart} onChange={(e) => setTimeStart(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle} />
+          <GlassTimePicker ariaLabel={L.timeStart} value={timeStart} onChange={setTimeStart} />
         </div>
         <div className="space-y-1">
           <label className="block text-xs font-medium" style={{ color: "#1C1C1C" }}>{L.timeEnd}</label>
-          <input type="time" value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)} className="w-full px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle} />
+          <GlassTimePicker ariaLabel={L.timeEnd} value={timeEnd} onChange={setTimeEnd} />
         </div>
       </div>
 
@@ -169,10 +171,10 @@ export default function EventEditForm({
           onChange={(e) => setMaxAttendees(e.target.value === "" ? "" : Number(e.target.value))}
           className="w-full sm:w-40 px-3 py-2 text-sm rounded-lg outline-none" style={inputStyle}
         />
-        <p className="text-xs" style={{ color: "#888" }}>{L.noLimit}</p>
+        <p className="text-xs" style={{ color: "#6B6258" }}>{L.noLimit}</p>
       </div>
 
-      {error && <p className="text-xs anim-pop" style={{ color: "#E2693E" }}>{error}</p>}
+      {error && <p className="text-xs anim-pop" style={{ color: "#8C3010" }}>{error}</p>}
 
       <div className="flex gap-2">
         <button

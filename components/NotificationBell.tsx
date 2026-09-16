@@ -173,9 +173,9 @@ export default function NotificationBell({
     <div ref={rootRef} className="relative">
       <button
         onClick={toggle}
-        aria-label={L.label}
+        aria-label={unread > 0 ? `${L.label} (${unread})` : L.label}
         aria-expanded={open}
-        className="relative w-9 h-9 flex items-center justify-center rounded-full btn-hover"
+        className="relative w-11 h-11 flex items-center justify-center rounded-full btn-hover"
         style={{ color: "#1C1C1C" }}
       >
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -195,15 +195,15 @@ export default function NotificationBell({
       {open && (
         <div
           className="absolute right-0 mt-2 w-80 max-w-[90vw] rounded-2xl shadow-koco overflow-hidden anim-pop z-50"
-          style={{ backgroundColor: "#F8F0DE", border: "1px solid #E8DCCF" }}
+          style={{ backgroundColor: "#FDFAF3", border: "1px solid #EFE6D9" }}
         >
-          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #E8DCCF" }}>
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #EFE6D9" }}>
             <h3 className="text-sm font-bold" style={{ color: "#1C1C1C" }}>{L.label}</h3>
             {!!items?.some((n) => !n.read_at) && (
               <button
                 onClick={markAll}
                 className="text-xs font-bold btn-hover"
-                style={{ color: "#38B39E" }}
+                style={{ color: "#1F7A6E" }}
               >
                 {L.markAll}
               </button>
@@ -212,13 +212,13 @@ export default function NotificationBell({
 
           <div className="max-h-96 overflow-y-auto">
             {status === "loading" || status === "idle" ? (
-              <p className="text-sm text-center py-8" style={{ color: "#888" }}>{L.loading}</p>
+              <p className="text-sm text-center py-8" style={{ color: "#6B6258" }}>{L.loading}</p>
             ) : status === "error" ? (
-              <p className="text-sm text-center py-8" style={{ color: "#888" }}>{L.failed}</p>
+              <p role="alert" className="text-sm text-center py-8" style={{ color: "#8C3010" }}>{L.failed}</p>
             ) : (items ?? []).length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: "#888" }}>{L.empty}</p>
+              <p className="text-sm text-center py-8" style={{ color: "#6B6258" }}>{L.empty}</p>
             ) : (
-              <div className="divide-y" style={{ borderColor: "#E8DCCF" }}>
+              <div className="divide-y" style={{ borderColor: "#EFE6D9" }}>
                 {(items ?? []).map((n) => {
                   const secondary = secondaryLine(n);
                   const tertiary = tertiaryLine(n);
@@ -226,7 +226,7 @@ export default function NotificationBell({
                     <button
                       key={n.id}
                       onClick={() => openItem(n)}
-                      className="w-full text-left px-4 py-3 flex gap-2.5 transition-colors btn-hover"
+                      className="w-full text-left px-4 py-3 flex gap-2.5 transition-colors row-hover"
                       style={{ backgroundColor: n.read_at ? "transparent" : "rgba(56,179,158,0.07)" }}
                     >
                       <span
@@ -247,7 +247,7 @@ export default function NotificationBell({
                             {tertiary}
                           </span>
                         )}
-                        <span className="block text-xs mt-0.5" style={{ color: "#9A8F84" }}>
+                        <span className="block text-xs mt-0.5" style={{ color: "#6B6258" }}>
                           {relativeTime(n.created_at, locale)}
                         </span>
                       </span>
