@@ -255,9 +255,19 @@ export default function ContentForm({
   // what the review panel is for, and it is the only place with the proper
   // transitions. Creating a post is unaffected.
   const canMoveStatus = post ? isLead && !isSettled && !isAdminView : true;
-  // Sending work back after a round of feedback - the only moment where
-  // "how urgent is this change?" is a question with an answer.
-  const isResubmission = !!post && canMoveStatus && ["in_progress", "rejected"].includes(post.status);
+  /**
+   * Sending work back after a round of feedback - the only moment where
+   * "how urgent is this change?" is a question with an answer.
+   *
+   * Keyed on "has this ever been submitted", not on a list of states. Listing
+   * in_progress and rejected missed the detour through Borrador: open a post
+   * the team sent back, press "Guardar borrador" once, and the post becomes a
+   * draft - so the picker vanished and the next submit recorded no urgency at
+   * all. submitted_at survives that round trip; the state does not.
+   *
+   * Settled posts are already excluded by canMoveStatus.
+   */
+  const isResubmission = !!post && canMoveStatus && !!post.submitted_at;
 
   // The Reel checklist is a gate for SUBMITTING a reel, not a property of one.
   // Showing it on an already-published post asked someone to confirm the specs
