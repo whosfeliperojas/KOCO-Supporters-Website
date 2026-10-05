@@ -256,18 +256,21 @@ export default function ContentForm({
   // transitions. Creating a post is unaffected.
   const canMoveStatus = post ? isLead && !isSettled && !isAdminView : true;
   /**
-   * Sending work back after a round of feedback - the only moment where
-   * "how urgent is this change?" is a question with an answer.
+   * Every send for review asks how urgent it is - no exceptions.
    *
-   * Keyed on "has this ever been submitted", not on a list of states. Listing
-   * in_progress and rejected missed the detour through Borrador: open a post
-   * the team sent back, press "Guardar borrador" once, and the post becomes a
-   * draft - so the picker vanished and the next submit recorded no urgency at
-   * all. submitted_at survives that round trip; the state does not.
+   * Two narrower rules were tried and both hid the question from people who
+   * needed it. A list of states (in_progress, rejected) missed the detour
+   * through Borrador. submitted_at missed the migrated posts, which never got
+   * a stamp: half of the in_progress and rejected posts in production have
+   * submitted_at NULL, so the picker vanished on exactly the ones being
+   * reworked.
    *
-   * Settled posts are already excluded by canMoveStatus.
+   * There is no version of "when does this matter?" that a volunteer should
+   * have to reverse-engineer from the state of their post. If they can send
+   * it, they are asked. Settled posts are excluded by canMoveStatus, because
+   * there is nothing to send.
    */
-  const isResubmission = !!post && canMoveStatus && !!post.submitted_at;
+  const asksUrgency = canMoveStatus;
 
   // The Reel checklist is a gate for SUBMITTING a reel, not a property of one.
   // Showing it on an already-published post asked someone to confirm the specs
@@ -284,7 +287,7 @@ export default function ContentForm({
       cycle: "Ciclo de publicación", pubDate: "Fecha de publicación", designUrl: "Enlace del diseño (URL)",
       otherLinks: "Otros enlaces", addLink: "+ Añadir otro enlace", removeLink: "Quitar enlace",
       linksHint: "Carpeta de Drive, referencias, música… lo que el equipo deba abrir.",
-      severityTitle: "¿Qué tan urgente es este cambio?",
+      severityTitle: "¿Qué tan urgente es esta revisión?",
       severityHint: "Solo «Urgente» le avisa al equipo de inmediato.",
       sevLow: "Menor", sevMedium: "Normal", sevHigh: "Urgente",
       caption: "Caption / Copy", script: `Guión o descripción (se recomiendan ${SCRIPT_RECOMMENDED_CHARS} caracteres)`, hashtags: "Hashtags",
@@ -315,7 +318,7 @@ export default function ContentForm({
       cycle: "Publication cycle", pubDate: "Publication date", designUrl: "Design link (URL)",
       otherLinks: "Other links", addLink: "+ Add another link", removeLink: "Remove link",
       linksHint: "Drive folder, references, music… anything the team should open.",
-      severityTitle: "How urgent is this change?",
+      severityTitle: "How urgent is this review?",
       severityHint: "Only \u201cUrgent\u201d alerts the team right away.",
       sevLow: "Minor", sevMedium: "Normal", sevHigh: "Urgent",
       caption: "Caption / Copy", script: `Script or description (${SCRIPT_RECOMMENDED_CHARS}+ characters recommended)`, hashtags: "Hashtags",
@@ -346,7 +349,7 @@ export default function ContentForm({
       cycle: "게시 회차", pubDate: "게시일", designUrl: "디자인 링크 (URL)",
       otherLinks: "추가 링크", addLink: "+ 링크 추가", removeLink: "링크 삭제",
       linksHint: "드라이브 폴더, 레퍼런스, 음악 등 팀이 열어 봐야 할 링크를 넣어 주세요.",
-      severityTitle: "이 수정은 얼마나 급한가요?",
+      severityTitle: "이 검토는 얼마나 급한가요?",
       severityHint: "‘긴급’만 팀에 즉시 알려요.",
       sevLow: "가벼움", sevMedium: "보통", sevHigh: "긴급",
       caption: "캡션 / 카피", script: `스크립트 또는 설명 (${SCRIPT_RECOMMENDED_CHARS}자 이상 권장)`, hashtags: "해시태그",
@@ -490,7 +493,7 @@ export default function ContentForm({
       links: links.map((l) => l.trim()).filter(Boolean),
       // Only meaningful on a resubmission; clearing it otherwise stops a stale
       // "urgent" from an earlier round riding along on a routine save.
-      change_severity: isResubmission ? severity : null,
+      change_severity: asksUrgency ? severity : null,
       caption: caption || null,
       script: script || null,
       hashtags: hashtags || null,
@@ -951,7 +954,7 @@ export default function ContentForm({
       {/* How urgent this round of changes is. Only shown when sending work
           back after feedback: a first-time idea has no change to rate, and
           asking anyway would train people to click past it. */}
-      {isResubmission && (
+      {asksUrgency && (
         <div className="rounded-2xl p-5 shadow-koco space-y-2" style={{ backgroundColor: "#FDFAF3" }}>
           <p className="text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.severityTitle}</p>
           <div role="radiogroup" aria-label={L.severityTitle} className="flex flex-wrap gap-2">
