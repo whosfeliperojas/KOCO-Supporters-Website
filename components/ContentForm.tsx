@@ -256,21 +256,24 @@ export default function ContentForm({
   // transitions. Creating a post is unaffected.
   const canMoveStatus = post ? isLead && !isSettled && !isAdminView : true;
   /**
-   * Every send for review asks how urgent it is - no exceptions.
+   * Every save asks how urgent it is - not just every submission.
    *
-   * Two narrower rules were tried and both hid the question from people who
+   * Three narrower rules were tried and each hid the question from people who
    * needed it. A list of states (in_progress, rejected) missed the detour
    * through Borrador. submitted_at missed the migrated posts, which never got
-   * a stamp: half of the in_progress and rejected posts in production have
-   * submitted_at NULL, so the picker vanished on exactly the ones being
-   * reworked.
+   * a stamp. Tying it to the submit button missed everyone whose only button
+   * is "Guardar cambios": collaborators, and the authors of the many posts
+   * that are already "Publicado" but still being corrected - the people with
+   * the least other means of saying "look at this now".
    *
-   * There is no version of "when does this matter?" that a volunteer should
-   * have to reverse-engineer from the state of their post. If they can send
-   * it, they are asked. Settled posts are excluded by canMoveStatus, because
-   * there is nothing to send.
+   * So the question follows the form, not the state. A save marked Urgente
+   * notifies the admins on its own (migration 38); a submission carries the
+   * urgency into the review queue as before.
+   *
+   * Admins are the exception, and the only one: they are the audience for
+   * this signal, not a sender of it, and the review panel is where they act.
    */
-  const asksUrgency = canMoveStatus;
+  const asksUrgency = !isAdminView;
 
   // The Reel checklist is a gate for SUBMITTING a reel, not a property of one.
   // Showing it on an already-published post asked someone to confirm the specs
@@ -491,9 +494,9 @@ export default function ContentForm({
       publication_date: pubDate || null,
       design_url: designUrl || null,
       links: links.map((l) => l.trim()).filter(Boolean),
-      // Only meaningful on a resubmission; clearing it otherwise stops a stale
-      // "urgent" from an earlier round riding along on a routine save.
-      change_severity: asksUrgency ? severity : null,
+      // Omitted rather than nulled when the form does not ask: an admin saving
+      // a correction must not silently clear the urgency its author set.
+      ...(asksUrgency ? { change_severity: severity } : {}),
       caption: caption || null,
       script: script || null,
       hashtags: hashtags || null,

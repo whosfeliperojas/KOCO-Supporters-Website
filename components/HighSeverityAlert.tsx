@@ -36,14 +36,23 @@ const T = {
 type Urgent = { id: string; entity_id: string; title: string | null; actor_name: string | null };
 
 /**
+ * Both ways a volunteer can raise the alarm: sending work for review marked
+ * Urgente, and saving an urgent correction to a post they cannot send (a
+ * collaborator's, or one already published). They are separate events, but
+ * to an admin they are one question - "which posts need me now?" - so the
+ * dialog lists each post once, newest first.
+ */
+const URGENT_KINDS = ["content_proposal_new", "content_urgent_edit"];
+
+/**
  * The one notification allowed to interrupt an admin.
  *
  * Everything else in this app waits in the bell. A volunteer who marks a
  * resubmission "urgent" is saying the schedule is at risk, so that single
  * case gets a dialog on the dashboard instead — which only works as long as
  * it stays rare. Hence the narrow query: unread, kind=content_proposal_new,
- * severity=high. Nothing else can raise it, and the trigger only sets `high`
- * on a resubmission (migration 35).
+ * severity=high. Nothing else can raise it, and the trigger only writes
+ * `high` when a volunteer chose it (migrations 37 and 38).
  *
  * Dismissing marks the notifications read, so it clears the bell too and the
  * dialog does not reappear on the next load or on another device.
@@ -52,6 +61,10 @@ export default function HighSeverityAlert() {
   const { locale } = useLocale();
   const L = T[locale];
   const [items, setItems] = useState<Urgent[] | null>(null);
+  // Every matching row, including the duplicates collapsed out of the list.
+  // Dismissing has to clear all of them or the hidden one re-raises the
+  // dialog on the next load.
+  const allIds = useRef<string[]>([]);
   const [busy, setBusy] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
@@ -61,7 +74,7 @@ export default function HighSeverityAlert() {
     createClient()
       .from("notifications")
       .select("id, entity_id, title, actor_name")
-      .eq("kind", "content_proposal_new")
+      .in("kind", URGENT_KINDS)
       .eq("severity", "high")
       .is("read_at", null)
       .order("created_at", { ascending: false })
@@ -71,7 +84,13 @@ export default function HighSeverityAlert() {
         // query fails. That is expected and must stay silent: the dashboard
         // simply has no urgent items to show until the migration is applied.
         if (cancelled || error) return;
-        setItems((data ?? []) as Urgent[]);
+        // One row per post. A volunteer who saves an urgent correction and
+        // then sends it for review produces two notifications about the same
+        // post; the admin should see one line, not the same title twice.
+        const rows = (data ?? []) as Urgent[];
+        allIds.current = rows.map((i) => i.id);
+        const seen = new Set<string>();
+        setItems(rows.filter((i) => (seen.has(i.entity_id) ? false : (seen.add(i.entity_id), true))));
       });
     return () => { cancelled = true; };
   }, []);
@@ -100,7 +119,7 @@ export default function HighSeverityAlert() {
     if (!items?.length) return;
     setBusy(true);
     const supabase = createClient();
-    await Promise.all(items.map((i) => supabase.rpc("mark_notification_read", { p_id: i.id })));
+    await Promise.all(allIds.current.map((id) => supabase.rpc("mark_notification_read", { p_id: id })));
     setBusy(false);
     close();
   }

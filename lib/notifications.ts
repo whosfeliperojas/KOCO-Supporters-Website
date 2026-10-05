@@ -3,6 +3,7 @@ import type { ContentStatus, EventApproval } from "@/lib/types";
 
 export type NotificationKind =
   | "content_proposal_new"
+  | "content_urgent_edit"
   | "content_decision"
   | "content_feedback"
   | "event_proposal_new"
@@ -34,6 +35,11 @@ export interface AppNotification {
   to_status: string | null;
   /** content_proposal_new only: a resubmission after feedback, not a first idea. */
   is_resubmission: boolean;
+  /**
+   * How urgent the author said it was: 'low' | 'medium' | 'high', or null on
+   * rows written before migration 35. Only 'high' interrupts an admin.
+   */
+  severity: string | null;
   /** points_awarded only. */
   points: number | null;
   /** points_awarded only - what kind of work it was for, when it names one. */
@@ -99,6 +105,9 @@ export function describeNotification(n: AppNotification, locale: Locale): string
       return n.is_resubmission
         ? { es: `${who} corrigió y reenvió`, en: `${who} revised and resent`, ko: `${who}님이 수정 후 다시 보냈어요:` }[locale]
         : { es: `Nueva propuesta de ${who}`, en: `New proposal from ${who}`, ko: `${who}님의 새 제안이에요:` }[locale];
+
+    case "content_urgent_edit":
+      return { es: `${who} marcó un cambio urgente en`, en: `${who} marked an urgent change on`, ko: `${who}님이 긴급 수정으로 표시했어요:` }[locale];
 
     case "content_decision":
       return to

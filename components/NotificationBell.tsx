@@ -46,7 +46,7 @@ function relativeTime(iso: string, locale: "es" | "en" | "ko"): string {
 
 const SELECT_COLUMNS =
   "id, kind, entity_type, entity_id, actor_id, actor_name, title, body, from_status, to_status, " +
-  "is_resubmission, points, criteria_es, criteria_en, points_source, read_at, created_at";
+  "is_resubmission, severity, points, criteria_es, criteria_en, points_source, read_at, created_at";
 
 /**
  * The bell, top-right in the app shell.
