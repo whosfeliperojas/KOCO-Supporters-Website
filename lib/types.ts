@@ -18,6 +18,8 @@ export type ContentStatus =
   | "rescheduled";
 
 export type EventApproval = "pending" | "confirmed" | "rejected" | "cancelled";
+/** How urgent a volunteer says their resubmission is. Only "high" interrupts an admin. */
+export type ChangeSeverity = "low" | "medium" | "high";
 export type EventRegistration = "open" | "closed";
 export type AttendeeRole = "attendee" | "support";
 export type CriteriaType = "core" | "extra";
@@ -126,6 +128,17 @@ export interface ContentPost {
   hashtags: string | null;
   design_url: string | null;
   preview_url: string | null;
+  /**
+   * Extra links beyond design_url, in the order the author added them.
+   * Optional on the type because the column arrives with migration 35 - a
+   * post read before that migration simply has no `links` key.
+   */
+  links?: string[] | null;
+  /**
+   * How urgent the author said a resubmission was. Only set when a post is
+   * sent back after feedback; null on a first-time proposal. Migration 35.
+   */
+  change_severity?: ChangeSeverity | null;
   /** Workbook Responsable said "Colaboraciones" - the team worked on it together. */
   is_collaboration: boolean;
   admin_notes: string | null;

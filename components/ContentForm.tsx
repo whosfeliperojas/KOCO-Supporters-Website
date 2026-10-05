@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/lib/locale-context";
 import { companionReact } from "@/components/Companion";
-import type { ContentPost, ContentStatus } from "@/lib/types";
+import type { ChangeSeverity, ContentPost, ContentStatus } from "@/lib/types";
 import GlassSelect, { type GlassOption } from "@/components/glass/GlassSelect";
 import GlassDatePicker from "@/components/glass/GlassDatePicker";
 import Button from "@/components/ui/Button";
@@ -195,6 +195,13 @@ export default function ContentForm({
   const [cycleId, setCycleId] = useState(post?.publication_cycle_id ?? "");
   const [pubDate, setPubDate] = useState(post?.publication_date ?? "");
   const [designUrl, setDesignUrl] = useState(post?.design_url ?? "");
+  // Extra links beyond the design one. Kept as a plain array of strings in
+  // author order; an empty row is just an unfilled field, dropped on save.
+  const [links, setLinks] = useState<string[]>(post?.links ?? []);
+  // How urgent this round of changes is. Only asked when sending a post back
+  // after feedback - a first-time idea has no change to rate. Defaults to
+  // "medium" so nobody is forced through an extra decision to resubmit.
+  const [severity, setSeverity] = useState<ChangeSeverity>(post?.change_severity ?? "medium");
   const [caption, setCaption] = useState(post?.caption ?? "");
   const [script, setScript] = useState(post?.script ?? "");
   const [hashtags, setHashtags] = useState(post?.hashtags ?? "");
@@ -248,6 +255,9 @@ export default function ContentForm({
   // what the review panel is for, and it is the only place with the proper
   // transitions. Creating a post is unaffected.
   const canMoveStatus = post ? isLead && !isSettled && !isAdminView : true;
+  // Sending work back after a round of feedback - the only moment where
+  // "how urgent is this change?" is a question with an answer.
+  const isResubmission = !!post && canMoveStatus && ["in_progress", "rejected"].includes(post.status);
 
   // The Reel checklist is a gate for SUBMITTING a reel, not a property of one.
   // Showing it on an already-published post asked someone to confirm the specs
@@ -262,6 +272,11 @@ export default function ContentForm({
       editTitle: "Editar contenido", newTitle: "Nuevo contenido",
       title: "Título", format: "Formato", channel: "Canal", type: "Tipo de contenido",
       cycle: "Ciclo de publicación", pubDate: "Fecha de publicación", designUrl: "Enlace del diseño (URL)",
+      otherLinks: "Otros enlaces", addLink: "+ Añadir otro enlace", removeLink: "Quitar enlace",
+      linksHint: "Carpeta de Drive, referencias, música… lo que el equipo deba abrir.",
+      severityTitle: "¿Qué tan urgente es este cambio?",
+      severityHint: "Solo «Urgente» le avisa al equipo de inmediato.",
+      sevLow: "Menor", sevMedium: "Normal", sevHigh: "Urgente",
       caption: "Caption / Copy", script: `Guión o descripción (se recomiendan ${SCRIPT_RECOMMENDED_CHARS} caracteres)`, hashtags: "Hashtags",
       reelSection: "Especificaciones de Reel (obligatorio)", duration: "Duración en segundos (7–58)",
       aspectRatio: "Confirmé que el video es 9:16 vertical", audioClean: "El audio es limpio, sin distorsión",
@@ -288,6 +303,11 @@ export default function ContentForm({
       editTitle: "Edit content", newTitle: "New post",
       title: "Title", format: "Format", channel: "Channel", type: "Content type",
       cycle: "Publication cycle", pubDate: "Publication date", designUrl: "Design link (URL)",
+      otherLinks: "Other links", addLink: "+ Add another link", removeLink: "Remove link",
+      linksHint: "Drive folder, references, music… anything the team should open.",
+      severityTitle: "How urgent is this change?",
+      severityHint: "Only \u201cUrgent\u201d alerts the team right away.",
+      sevLow: "Minor", sevMedium: "Normal", sevHigh: "Urgent",
       caption: "Caption / Copy", script: `Script or description (${SCRIPT_RECOMMENDED_CHARS}+ characters recommended)`, hashtags: "Hashtags",
       reelSection: "Reel specifications (required)", duration: "Duration in seconds (7–58)",
       aspectRatio: "I confirm the video is 9:16 vertical", audioClean: "Audio is clean, no distortion",
@@ -314,6 +334,11 @@ export default function ContentForm({
       editTitle: "콘텐츠 수정", newTitle: "새 콘텐츠",
       title: "제목", format: "포맷", channel: "채널", type: "콘텐츠 유형",
       cycle: "게시 회차", pubDate: "게시일", designUrl: "디자인 링크 (URL)",
+      otherLinks: "추가 링크", addLink: "+ 링크 추가", removeLink: "링크 삭제",
+      linksHint: "드라이브 폴더, 레퍼런스, 음악 등 팀이 열어 봐야 할 링크를 넣어 주세요.",
+      severityTitle: "이 수정은 얼마나 급한가요?",
+      severityHint: "‘긴급’만 팀에 즉시 알려요.",
+      sevLow: "가벼움", sevMedium: "보통", sevHigh: "긴급",
       caption: "캡션 / 카피", script: `스크립트 또는 설명 (${SCRIPT_RECOMMENDED_CHARS}자 이상 권장)`, hashtags: "해시태그",
       reelSection: "릴스 사양 (필수)", duration: "영상 길이(초, 7–58)",
       aspectRatio: "9:16 세로 영상임을 확인했어요", audioClean: "오디오가 깨끗하고 왜곡이 없어요",
@@ -345,6 +370,10 @@ export default function ContentForm({
     if (!title.trim()) errs.title = L.required;
     if (!format) errs.format = L.required;
     if (!channel) errs.channel = L.required;
+
+    // Only filled rows are checked: an empty one is a field the author opened
+    // and did not use, and it is dropped on save rather than rejected.
+    if (links.some((l) => l.trim() && !/^https?:\/\/.+/.test(l.trim()))) errs.links = L.urlFormat;
 
     const hashtagCount = hashtags.trim() ? hashtags.trim().split(/\s+/).filter(Boolean).length : 0;
     if (hashtagCount > HASHTAGS_MAX) errs.hashtags = L.hashtagsLimit;
@@ -434,7 +463,6 @@ export default function ContentForm({
     if (duplicate) {
       setSaving(false);
       setPendingAction(null);
-    setPendingAction(null);
       setErrors({ title: `${L.titleTaken} — "${duplicate.title}"${duplicate.responsible_name ? ` (${duplicate.responsible_name})` : ""}` });
       return;
     }
@@ -449,6 +477,10 @@ export default function ContentForm({
       publication_cycle_id: cycleId || null,
       publication_date: pubDate || null,
       design_url: designUrl || null,
+      links: links.map((l) => l.trim()).filter(Boolean),
+      // Only meaningful on a resubmission; clearing it otherwise stops a stale
+      // "urgent" from an earlier round riding along on a routine save.
+      change_severity: isResubmission ? severity : null,
       caption: caption || null,
       script: script || null,
       hashtags: hashtags || null,
@@ -473,8 +505,29 @@ export default function ContentForm({
     };
 
     let postId = post?.id;
+    /**
+     * `links` and `change_severity` arrive with migration 35. If that has not
+     * been applied yet, PostgREST rejects the ENTIRE write for the unknown
+     * column - which would stop every volunteer from saving. So: try with the
+     * new fields, and on exactly that error, drop them and try once more.
+     * Everything else still saves; the two new fields simply do not persist
+     * until the migration lands. Delete this once it has.
+     */
+    const isUnknownColumn = (e: { code?: string; message?: string } | null) =>
+      !!e && (e.code === "PGRST204" || e.code === "42703" ||
+              /links|change_severity/.test(e.message ?? ""));
+    const withoutNewColumns = (d: typeof postData) => {
+      const { links: _l, change_severity: _s, ...rest } = d;
+      void _l; void _s;
+      return rest;
+    };
+
     if (post) {
-      const { error } = await supabase.from("content_posts").update(postData).eq("id", post.id);
+      let { error } = await supabase.from("content_posts").update(postData).eq("id", post.id);
+      if (isUnknownColumn(error)) {
+        console.warn("migration 35 not applied yet - saving without links/change_severity");
+        ({ error } = await supabase.from("content_posts").update(withoutNewColumns(postData)).eq("id", post.id));
+      }
       if (error) {
         // Previously discarded, so a write the database refused looked like a
         // successful save and the edit vanished on the next page load.
@@ -489,7 +542,11 @@ export default function ContentForm({
         return;
       }
     } else {
-      const { data, error } = await supabase.from("content_posts").insert(postData).select("id").single();
+      let { data, error } = await supabase.from("content_posts").insert(postData).select("id").single();
+      if (isUnknownColumn(error)) {
+        console.warn("migration 35 not applied yet - saving without links/change_severity");
+        ({ data, error } = await supabase.from("content_posts").insert(withoutNewColumns(postData)).select("id").single());
+      }
       if (error || !data) {
         setSaving(false);
       setPendingAction(null);
@@ -724,6 +781,40 @@ export default function ContentForm({
           />
         </Field>
 
+        {/* Any other links this idea needs. One field per link, added on
+            demand - the alternative people were using was pasting them into
+            the caption, where nothing can be clicked. */}
+        <Field label={L.otherLinks} error={errors.links}>
+          <p className="text-xs mb-2 measure" style={{ color: "#6B6258" }}>{L.linksHint}</p>
+          {links.length > 0 && (
+            <div className="space-y-2 mb-2">
+              {links.map((link, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    type="url"
+                    placeholder="https://..."
+                    value={link}
+                    onChange={(e) => setLinks(links.map((l, j) => (j === i ? e.target.value : l)))}
+                    hasError={!!link.trim() && !/^https?:\/\/.+/.test(link.trim())}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    aria-label={`${L.removeLink} ${i + 1}`}
+                    onClick={() => setLinks(links.filter((_, j) => j !== i))}
+                    className="shrink-0"
+                  >
+                    <span aria-hidden>×</span>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => setLinks([...links, ""])}>
+            {L.addLink}
+          </Button>
+        </Field>
+
         {/* Caption */}
         <Field label={L.caption}>
           <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} />
@@ -844,6 +935,45 @@ export default function ContentForm({
               <Checkbox checked={reelTypo} onChange={setReelTypo} label={L.typography} />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* How urgent this round of changes is. Only shown when sending work
+          back after feedback: a first-time idea has no change to rate, and
+          asking anyway would train people to click past it. */}
+      {isResubmission && (
+        <div className="rounded-2xl p-5 shadow-koco space-y-2" style={{ backgroundColor: "#FDFAF3" }}>
+          <p className="text-sm font-medium" style={{ color: "#1C1C1C" }}>{L.severityTitle}</p>
+          <div role="radiogroup" aria-label={L.severityTitle} className="flex flex-wrap gap-2">
+            {([
+              { v: "low" as const, label: L.sevLow },
+              { v: "medium" as const, label: L.sevMedium },
+              { v: "high" as const, label: L.sevHigh },
+            ]).map((o) => {
+              const on = severity === o.v;
+              // Only the urgent one wears coral: it is the single choice that
+              // interrupts somebody, so it should look like it costs something.
+              const tint = o.v === "high" ? "#8C3010" : "#1F7A6E";
+              return (
+                <button
+                  key={o.v}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setSeverity(o.v)}
+                  className="text-xs font-bold px-4 min-h-[44px] rounded-lg btn-hover transition-colors"
+                  style={{
+                    backgroundColor: on ? (o.v === "high" ? "rgba(226,105,62,0.16)" : "rgba(56,179,158,0.14)") : "rgba(255,255,255,0.72)",
+                    border: `1.5px solid ${on ? tint : "#D8CEC1"}`,
+                    color: on ? tint : "#6B6258",
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs measure" style={{ color: "#6B6258" }}>{L.severityHint}</p>
         </div>
       )}
 

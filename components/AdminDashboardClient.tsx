@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale } from "@/lib/locale-context";
 import Peko from "@/components/Peko";
 import { DATE_LOCALE } from "@/lib/i18n";
+import HighSeverityAlert from "@/components/HighSeverityAlert";
 
 type Volunteer = { id: string; full_name: string; display_name: string | null };
 type Post = { responsible_id: string | null; status: string };
@@ -263,6 +264,10 @@ export default function AdminDashboardClient({
   // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {/* The only thing in the app that interrupts: a resubmission a
+          volunteer marked urgent. Renders nothing when there are none. */}
+      <HighSeverityAlert />
+
       {/* Greeting — the scrapbook moment */}
       <div className="flex items-center justify-between gap-4 anim-in" style={{ "--i": 0 } as React.CSSProperties}>
         <div>
